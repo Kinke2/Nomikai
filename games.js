@@ -37,6 +37,14 @@ window.GAMES = [
     emoji: '💣',
     accent: '#FF5A45',
     file: 'games/bomb-tap.html'
+  },
+  {
+    id: 'chinchiro',
+    title: 'チンチロ',
+    tagline: 'サイコロをお椀に投げ入れて出目を決める。',
+    emoji: '🎲',
+    accent: '#E8C24A',
+    file: 'games/chinchiro.html'
   }
 
   // 新しいゲームはこの下に追加していく
