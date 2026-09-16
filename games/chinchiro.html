@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>チンチロ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-base:#0F1012;
+    --bg-surface:#191B20;
+    --bg-raised:#22252C;
+    --line:#31353D;
+    --text:#F2F1ED;
+    --text-muted:#8B8E97;
+    --radius-card:18px;
+    --accent:#E8C24A;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;overscroll-behavior:none;}
+  body{
+    background:var(--bg-base);
+    color:var(--text);
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #app{
+    width:100%;
+    max-width:460px;
+    height:100vh;
+    display:flex;
+    flex-direction:column;
+    position:relative;
+    overflow:hidden;
+  }
+  h1,h2,h3{margin:0;}
+  button{font-family:inherit;cursor:pointer;border:none;}
+
+  .screen{display:none;flex-direction:column;flex:1;min-height:0;animation:fadeIn .3s ease;}
+  .screen.active{display:flex;}
+  @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+
+  /* ---- setup ---- */
+  #screen-setup{padding:26px 22px;justify-content:center;}
+  .eyebrow{color:var(--text-muted);font-size:12px;letter-spacing:.05em;margin-bottom:8px;}
+  .title{font-size:26px;font-weight:900;}
+  .tagline{color:var(--text-muted);font-size:13.5px;margin-top:12px;line-height:1.8;}
+  .btn-primary{
+    width:100%;background:var(--accent);color:#1A1300;border-radius:14px;padding:16px;
+    font-size:15.5px;font-weight:900;margin-top:30px;
+  }
+  .btn-ghost{
+    width:100%;background:transparent;color:var(--text-muted);border:1px solid var(--line);
+    border-radius:14px;padding:13px;font-size:13.5px;font-weight:700;margin-top:10px;
+  }
+
+  /* ---- play ---- */
+  #screen-play{position:relative;padding:0;}
+  .status-bar{
+    padding:20px 22px 4px;
+    display:flex;justify-content:space-between;align-items:baseline;
+  }
+  .status-text{font-size:14px;font-weight:700;}
+  .attempts-text{font-size:12px;color:var(--text-muted);}
+  .attempts-text b{color:var(--text);}
+
+  .bowl-area{
+    flex:1;display:flex;align-items:center;justify-content:center;position:relative;
+  }
+  .bowl{
+    width:232px;height:232px;border-radius:50%;
+    background:
+      radial-gradient(circle at 50% 46%, #24262D 0%, #17181C 62%, #0B0C0D 100%);
+    box-shadow:
+      inset 0 10px 22px rgba(0,0,0,.55),
+      inset 0 -6px 14px rgba(255,255,255,.03),
+      0 0 0 2px var(--line);
+    position:relative;
+  }
+  .bowl::after{
+    content:'';
+    position:absolute;inset:14px;border-radius:50%;
+    border:1px dashed rgba(255,255,255,.08);
+  }
+
+  .tray-area{
+    height:150px;
+    position:relative;
+    flex-shrink:0;
+  }
+  .tray-slot{
+    position:absolute;
+    width:52px;height:52px;
+    border-radius:6px;
+    border:1.5px dashed var(--line);
+    transform:translate(-50%,-50%);
+  }
+  #slot0{ left:50%; top:22%; }
+  #slot1{ left:67%; top:74%; }
+  #slot2{ left:33%; top:74%; }
+
+  .dice-layer{ position:absolute; inset:0; pointer-events:none; }
+  .die{
+    position:absolute;
+    width:52px;height:52px;
+    border-radius:6px;
+    background:linear-gradient(150deg,#F6F4EF,#D9D6CC);
+    box-shadow:0 4px 10px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.6);
+    pointer-events:auto;
+    touch-action:none;
+    transition:box-shadow .15s ease;
+  }
+  .die.dragging{ box-shadow:0 10px 22px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.6); z-index:10; }
+  .die.settled{ transition:left .25s ease, top .25s ease; }
+  .die.converge{ transition:left .6s cubic-bezier(.25,.9,.3,1.15), top .6s cubic-bezier(.25,.9,.3,1.15); }
+  .die.in-bowl{ transform:scale(.8); box-shadow:0 2px 5px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.55); }
+  .die.flying{ transition:left .55s cubic-bezier(.3,.6,.4,1), top .55s cubic-bezier(.3,.6,.4,1), opacity .5s ease .1s, transform .55s ease; opacity:0; transform:scale(.4) rotate(200deg); }
+  @keyframes clatter{
+    0%{ transform:scale(.8) translate(0,0) rotate(0deg); }
+    14%{ transform:scale(.8) translate(3px,-2px) rotate(7deg); }
+    28%{ transform:scale(.8) translate(-4px,2px) rotate(-6deg); }
+    42%{ transform:scale(.8) translate(3px,2px) rotate(5deg); }
+    56%{ transform:scale(.8) translate(-2px,-2px) rotate(-3deg); }
+    70%{ transform:scale(.8) translate(2px,1px) rotate(2deg); }
+    84%{ transform:scale(.8) translate(-1px,0) rotate(-1deg); }
+    100%{ transform:scale(.8) translate(0,0) rotate(0deg); }
+  }
+  .die.clatter{ animation:clatter .55s ease-out; }
+  .pip{
+    position:absolute;width:8px;height:8px;border-radius:50%;
+    background:#1B1C1F;
+    transform:translate(-50%,-50%);
+  }
+  .pip.pip-one{
+    width:12px;height:12px;
+    background:#E0362E;
+  }
+
+  .bottombar{
+    padding:14px 20px calc(14px + env(safe-area-inset-bottom));
+  }
+
+  /* ---- result ---- */
+  #screen-result{padding:26px 22px;justify-content:center;align-items:center;text-align:center;gap:26px;}
+  .result-badge{
+    font-size:12px;font-weight:700;letter-spacing:.06em;
+    padding:6px 14px;border-radius:999px;
+    background:var(--bg-surface);border:1px solid var(--line);
+    color:var(--result-color,var(--accent));
+  }
+  .result-label{font-size:30px;font-weight:900;color:var(--result-color,var(--text));}
+  .result-dice{display:flex;gap:12px;}
+  .result-die{
+    width:56px;height:56px;border-radius:7px;position:relative;
+    background:linear-gradient(150deg,#F6F4EF,#D9D6CC);
+    box-shadow:0 4px 10px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.6);
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- SETUP -->
+  <div class="screen active" id="screen-setup">
+    <div class="eyebrow">CHINCHIRO</div>
+    <div class="title">チンチロ</div>
+    <div class="tagline">サイコロをお椀の中へ投げ入れてください。<br>お椀からはみ出すとチョンボです。</div>
+    <button class="btn-primary" id="startBtn">はじめる</button>
+  </div>
+
+  <!-- PLAY -->
+  <div class="screen" id="screen-play">
+    <div class="status-bar">
+      <div class="status-text" id="statusText">サイコロをお椀の中へ</div>
+      <div class="attempts-text">残り<b id="attemptsNum">3</b>投</div>
+    </div>
+
+    <div class="bowl-area">
+      <div class="bowl" id="bowl"></div>
+    </div>
+
+    <div class="tray-area" id="trayArea">
+      <div class="tray-slot" id="slot0"></div>
+      <div class="tray-slot" id="slot1"></div>
+      <div class="tray-slot" id="slot2"></div>
+    </div>
+
+    <div class="dice-layer" id="diceLayer">
+      <div class="die" id="die0"></div>
+      <div class="die" id="die1"></div>
+      <div class="die" id="die2"></div>
+    </div>
+  </div>
+
+  <!-- RESULT -->
+  <div class="screen" id="screen-result">
+    <div class="result-badge" id="resultBadge">RESULT</div>
+    <div class="result-label" id="resultLabel">-</div>
+    <div class="result-dice" id="resultDice"></div>
+    <div style="width:100%;">
+      <button class="btn-primary" id="againBtn" style="margin-top:0;">もう一度</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  var DIE_SIZE = 52;
+  var DIE_HIT_R = 24;
+
+  var PIP_LAYOUTS = {
+    1: [[50,50]],
+    2: [[24,24],[76,76]],
+    3: [[24,24],[50,50],[76,76]],
+    4: [[24,24],[76,24],[24,76],[76,76]],
+    5: [[24,24],[76,24],[50,50],[24,76],[76,76]],
+    6: [[24,20],[76,20],[24,50],[76,50],[24,80],[76,80]]
+  };
+
+  var TIER = {
+    pinzoro: { color:'#E8C24A', badge:'最強' },
+    arashi:  { color:'#F2A65A', badge:'強役' },
+    shigoro: { color:'#6FCF97', badge:'good' },
+    normal:  { color:'#5FBCD3', badge:'' },
+    hifumi:  { color:'#FF6B5B', badge:'弱役' },
+    none:    { color:'#8B8E97', badge:'' },
+    chonbo:  { color:'#FF2E2E', badge:'反則' }
+  };
+
+  var state = {
+    attemptsLeft: 3,
+    chonbo: false,
+    bowlCenter: {x:0,y:0}, bowlRadius: 0,
+    slotPos: [null,null,null],
+    audioCtx: null,
+    dragActive: false
+  };
+
+  function el(id){ return document.getElementById(id); }
+  function show(id){
+    document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+    el(id).classList.add('active');
+  }
+  function vibrate(p){ if(navigator.vibrate){ navigator.vibrate(p); } }
+
+  function renderDieFace(container, value){
+    container.innerHTML = '';
+    var pips = PIP_LAYOUTS[value] || [];
+    pips.forEach(function(p){
+      var d = document.createElement('div');
+      d.className = 'pip' + (value === 1 ? ' pip-one' : '');
+      d.style.left = p[0]+'%';
+      d.style.top = p[1]+'%';
+      container.appendChild(d);
+    });
+  }
+  function randomFace(){ return 1 + Math.floor(Math.random()*6); }
+
+  // ---------- layout measurement ----------
+  function measureLayout(){
+    var appRect = el('app').getBoundingClientRect();
+    var bowlRect = el('bowl').getBoundingClientRect();
+    state.bowlCenter = {
+      x: bowlRect.left + bowlRect.width/2 - appRect.left,
+      y: bowlRect.top + bowlRect.height/2 - appRect.top
+    };
+    state.bowlRadius = bowlRect.width/2;
+
+    ['slot0','slot1','slot2'].forEach(function(id, i){
+      var r = el(id).getBoundingClientRect();
+      state.slotPos[i] = {
+        x: r.left + r.width/2 - appRect.left,
+        y: r.top + r.height/2 - appRect.top
+      };
+    });
+  }
+
+  function placeDieAtSlot(i, instant){
+    var d = el('die'+i);
+    var p = state.slotPos[i];
+    d.classList.toggle('settled', !instant);
+    d.style.left = (p.x - DIE_SIZE/2) + 'px';
+    d.style.top = (p.y - DIE_SIZE/2) + 'px';
+  }
+
+  // ---------- geometry: circle-circle overlap fraction of the die inside the bowl ----------
+  function insideFraction(dieCenter, r, bowlCenter, R){
+    var dx = dieCenter.x - bowlCenter.x;
+    var dy = dieCenter.y - bowlCenter.y;
+    var d = Math.sqrt(dx*dx + dy*dy);
+
+    if(d >= r + R) return 0;
+    if(d <= Math.abs(R - r)){
+      return (r <= R) ? 1 : (R*R)/(r*r);
+    }
+    var part1 = r*r*Math.acos((d*d + r*r - R*R) / (2*d*r));
+    var part2 = R*R*Math.acos((d*d + R*R - r*r) / (2*d*R));
+    var part3 = 0.5*Math.sqrt(Math.max(0, (-d+r+R)*(d+r-R)*(d-r+R)*(d+r+R)));
+    var overlapArea = part1 + part2 - part3;
+    return Math.min(1, overlapArea / (Math.PI*r*r));
+  }
+
+  // ---------- sound (Web Audio API, no external files) ----------
+  function ensureAudio(){
+    if(!state.audioCtx){
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if(!AC) return null;
+      state.audioCtx = new AC();
+    }
+    if(state.audioCtx.state === 'suspended'){ state.audioCtx.resume(); }
+    return state.audioCtx;
+  }
+
+  function playClack(offsetSec, pitch){
+    var ctx = ensureAudio();
+    if(!ctx) return;
+    var t = ctx.currentTime + offsetSec;
+    var bufferSize = Math.floor(ctx.sampleRate * 0.045);
+    var buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    var data = buffer.getChannelData(0);
+    for(var i=0;i<bufferSize;i++){
+      data[i] = (Math.random()*2-1) * Math.pow(1 - i/bufferSize, 3);
+    }
+    var src = ctx.createBufferSource();
+    src.buffer = buffer;
+    var filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = pitch;
+    filter.Q.value = 1.1;
+    var gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.5, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t+0.05);
+    src.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+    src.start(t);
+  }
+
+  function playClatterSound(){
+    var hits = 5 + Math.floor(Math.random()*2);
+    var tOffset = 0;
+    for(var i=0;i<hits;i++){
+      playClack(tOffset, 1500 + Math.random()*1200);
+      tOffset += 0.045 + Math.random()*0.05;
+    }
+  }
+
+  // ---------- drag handling: all three dice move together as one toss ----------
+  var dragStart = null; // {pointer:{x,y}, dieStarts:[{left,top} x3]}
+
+  function beginDrag(e){
+    if(state.chonbo || state.dragActive) return;
+    state.dragActive = true;
+    dragStart = { pointer:{x:e.clientX, y:e.clientY}, dieStarts:[] };
+    for(var i=0;i<3;i++){
+      var d = el('die'+i);
+      d.setPointerCapture && d.setPointerCapture(e.pointerId);
+      d.classList.add('dragging');
+      d.classList.remove('settled','in-bowl','clatter');
+      dragStart.dieStarts.push({
+        left: parseFloat(d.style.left || 0),
+        top: parseFloat(d.style.top || 0)
+      });
+    }
+  }
+
+  function onDragMove(e){
+    if(!dragStart) return;
+    var dx = e.clientX - dragStart.pointer.x;
+    var dy = e.clientY - dragStart.pointer.y;
+    for(var i=0;i<3;i++){
+      var d = el('die'+i);
+      d.style.left = (dragStart.dieStarts[i].left + dx) + 'px';
+      d.style.top = (dragStart.dieStarts[i].top + dy) + 'px';
+    }
+  }
+
+  function onDragEnd(){
+    if(!dragStart) return;
+    dragStart = null;
+    state.dragActive = false;
+    for(var i=0;i<3;i++){ el('die'+i).classList.remove('dragging'); }
+    resolveDrop();
+  }
+
+  [0,1,2].forEach(function(i){
+    var d = el('die'+i);
+    d.addEventListener('pointerdown', beginDrag);
+    d.addEventListener('pointermove', onDragMove);
+    d.addEventListener('pointerup', onDragEnd);
+  });
+
+  function resolveDrop(){
+    var outcomes = [];
+    for(var i=0;i<3;i++){
+      var d = el('die'+i);
+      var left = parseFloat(d.style.left);
+      var top = parseFloat(d.style.top);
+      var center = { x:left + DIE_SIZE/2, y:top + DIE_SIZE/2 };
+      var fractionIn = insideFraction(center, DIE_HIT_R, state.bowlCenter, state.bowlRadius);
+      var fractionOut = 1 - fractionIn;
+      outcomes.push({ i:i, center:center, isChonbo: Math.random() < fractionOut });
+    }
+
+    var failed = outcomes.filter(function(o){ return o.isChonbo; });
+    if(failed.length > 0){
+      triggerChonbo(failed);
+      return;
+    }
+
+    settleAndRoll();
+  }
+
+  function triggerChonbo(failedOutcomes){
+    state.chonbo = true;
+    failedOutcomes.forEach(function(o){
+      var d = el('die'+o.i);
+      var away = {
+        x: o.center.x + (o.center.x - state.bowlCenter.x)*1.4,
+        y: o.center.y + (o.center.y - state.bowlCenter.y)*1.4 - 40
+      };
+      d.classList.add('flying');
+      d.style.left = (away.x - DIE_SIZE/2) + 'px';
+      d.style.top = (away.y - DIE_SIZE/2) + 'px';
+    });
+    vibrate([50,40,50]);
+    el('statusText').textContent = 'チョンボ…';
+    setTimeout(function(){ finishTurn({type:'chonbo', label:'チョンボ'}); }, 650);
+  }
+
+  function computeClusterTargets(){
+    var baseAngle = Math.random()*360;
+    var r = 30 + Math.random()*8; // large enough that 120-degree-spaced dice never overlap
+    var pts = [];
+    for(var k=0;k<3;k++){
+      var ang = (baseAngle + k*120) * Math.PI/180;
+      pts.push({
+        x: state.bowlCenter.x + r*Math.cos(ang),
+        y: state.bowlCenter.y + r*Math.sin(ang)
+      });
+    }
+    return pts;
+  }
+
+  // Converging toward the bowl center and rolling the faces happen together:
+  // the dice slide inward while their faces flash randomly, and both finish
+  // at the same moment so the numbers lock in exactly as the dice arrive.
+  function settleAndRoll(){
+    var targets = computeClusterTargets();
+    var CONVERGE_MS = 620;
+
+    vibrate([12,25,12,25,8]);
+    playClatterSound();
+
+    for(var i=0;i<3;i++){
+      var d = el('die'+i);
+      d.classList.remove('settled');
+      d.classList.add('in-bowl');
+      void d.offsetWidth;
+      d.style.animationDuration = CONVERGE_MS+'ms';
+      d.style.animationDelay = (i*30)+'ms';
+      d.classList.add('converge','clatter');
+      d.style.left = (targets[i].x - DIE_SIZE/2) + 'px';
+      d.style.top = (targets[i].y - DIE_SIZE/2) + 'px';
+    }
+    el('statusText').textContent = '……';
+
+    var finalValues = [0,0,0];
+    var spins = 0;
+    var totalSpins = Math.round(CONVERGE_MS/65);
+    var spinTimer = setInterval(function(){
+      spins++;
+      for(var i=0;i<3;i++){
+        renderDieFace(el('die'+i), 1 + Math.floor(Math.random()*6));
+      }
+      if(spins >= totalSpins){
+        clearInterval(spinTimer);
+        for(var j=0;j<3;j++){
+          finalValues[j] = 1 + Math.floor(Math.random()*6);
+          renderDieFace(el('die'+j), finalValues[j]);
+        }
+      }
+    }, 65);
+
+    setTimeout(function(){
+      for(var i=0;i<3;i++){
+        var d = el('die'+i);
+        d.classList.remove('clatter','converge');
+        d.classList.add('settled');
+        d.style.animationDelay = '';
+        d.style.animationDuration = '';
+      }
+      vibrate([15,20,15]);
+      setTimeout(function(){ evaluateAndProceed(finalValues); }, 350);
+    }, CONVERGE_MS);
+  }
+
+  function evaluateHand(values){
+    var sorted = values.slice().sort(function(a,b){return a-b;});
+    if(sorted[0]===sorted[1] && sorted[1]===sorted[2]){
+      if(sorted[0]===1) return {type:'pinzoro', label:'ピンゾロ'};
+      return {type:'arashi', label:'アラシ'};
+    }
+    if(sorted[0]===sorted[1] || sorted[1]===sorted[2]){
+      var pairVal = (sorted[0]===sorted[1]) ? sorted[0] : sorted[1];
+      var loneVal = (sorted[0]===sorted[1]) ? sorted[2] : sorted[0];
+      return {type:'normal', label: loneVal + 'の目', value: loneVal};
+    }
+    var key = sorted.join(',');
+    if(key === '4,5,6') return {type:'shigoro', label:'シゴロ'};
+    if(key === '1,2,3') return {type:'hifumi', label:'ヒフミ'};
+    return {type:'none', label:'目なし'};
+  }
+
+  function evaluateAndProceed(values){
+    var hand = evaluateHand(values);
+    hand.values = values;
+
+    if(hand.type === 'none'){
+      state.attemptsLeft--;
+      if(state.attemptsLeft > 0){
+        el('statusText').textContent = '目なし。もう一度';
+        el('attemptsNum').textContent = state.attemptsLeft;
+        setTimeout(resetForRetry, 700);
+        return;
+      } else {
+        finishTurn(hand);
+        return;
+      }
+    }
+    finishTurn(hand);
+  }
+
+  function resetForRetry(){
+    state.chonbo = false;
+    for(var i=0;i<3;i++){
+      var d = el('die'+i);
+      d.classList.remove('in-bowl','clatter','flying');
+      d.style.animationDelay = '';
+      renderDieFace(d, randomFace());
+      placeDieAtSlot(i, false);
+    }
+    el('statusText').textContent = 'サイコロをお椀の中へ';
+  }
+
+  function finishTurn(hand){
+    var tier = TIER[hand.type] || TIER.normal;
+    el('resultLabel').textContent = hand.label;
+    el('resultLabel').style.setProperty('--result-color', tier.color);
+    el('resultBadge').style.setProperty('--result-color', tier.color);
+    el('resultBadge').textContent = hand.type === 'chonbo' ? '反則' : (tier.badge || 'RESULT');
+
+    var diceWrap = el('resultDice');
+    diceWrap.innerHTML = '';
+    if(hand.values){
+      hand.values.forEach(function(v){
+        var box = document.createElement('div');
+        box.className = 'result-die';
+        renderDieFace(box, v);
+        diceWrap.appendChild(box);
+      });
+    }
+    show('screen-result');
+  }
+
+  // ---------- flow ----------
+  function startFreshRound(){
+    show('screen-play');
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        measureLayout();
+        state.attemptsLeft = 3;
+        state.chonbo = false;
+        el('attemptsNum').textContent = 3;
+        el('statusText').textContent = 'サイコロをお椀の中へ';
+        for(var i=0;i<3;i++){
+          var d = el('die'+i);
+          d.classList.remove('flying','in-bowl','clatter');
+          d.style.animationDelay = '';
+          renderDieFace(d, randomFace());
+          placeDieAtSlot(i, true);
+        }
+      });
+    });
+  }
+
+  el('startBtn').addEventListener('click', startFreshRound);
+  el('againBtn').addEventListener('click', startFreshRound);
+
+  window.addEventListener('resize', function(){
+    if(el('screen-play').classList.contains('active')){ measureLayout(); }
+  });
+})();
+</script>
+</body>
+</html>
