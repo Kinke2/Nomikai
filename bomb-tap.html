@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>爆弾タップゲーム</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  @property --stage-color{
+    syntax: '<color>';
+    inherits: true;
+    initial-value: #5B8DEF;
+  }
+  :root{
+    --bg-base:#0F1012;
+    --bg-surface:#191B20;
+    --bg-raised:#22252C;
+    --line:#31353D;
+    --text:#F2F1ED;
+    --text-muted:#8B8E97;
+    --radius-card:18px;
+    --stage-color:#5B8DEF;
+    --shake-amp:0px;
+    --shake-dur:4s;
+    --ring-dur:3.2s;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg-base);
+    color:var(--text);
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x:hidden;
+  }
+  #app{
+    width:100%;
+    max-width:460px;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    position:relative;
+    padding:24px 20px 110px;
+  }
+  h1,h2,h3{margin:0;}
+  .btn-mute{
+    position:absolute;top:22px;right:20px;z-index:5;
+    background:var(--bg-surface);border:1px solid var(--line);color:var(--text-muted);
+    font-size:11px;font-weight:700;padding:6px 12px;border-radius:999px;
+    font-family:inherit;cursor:pointer;
+  }
+  .eyebrow{color:var(--text-muted);font-size:12px;letter-spacing:.04em;margin-bottom:6px;}
+  .title{font-size:22px;font-weight:900;letter-spacing:.01em;}
+  .tagline{color:var(--text-muted);font-size:13.5px;margin-top:8px;line-height:1.7;}
+
+  .screen{display:none;flex-direction:column;animation:fadeIn .3s ease;}
+  .screen.active{display:flex;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+  .rule-single{
+    flex:1;
+    display:flex;align-items:center;
+    font-size:28px;font-weight:900;letter-spacing:.01em;
+    line-height:1.5;
+    margin-top:10px;
+  }
+
+  /* ---- bomb screen ---- */
+  .stage-row{display:flex;justify-content:space-between;align-items:baseline;margin-top:4px;}
+  .stage-label{
+    font-size:12.5px;font-weight:700;letter-spacing:.04em;
+    color:var(--stage-color);
+    transition:color .4s ease;
+  }
+  .tap-count{font-size:12.5px;color:var(--text-muted);}
+  .tap-count b{color:var(--text);font-size:15px;font-weight:700;}
+
+  .bomb-stage{
+    position:relative;
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px 0 6px;
+  }
+  .ring{
+    position:absolute;
+    width:200px;height:200px;border-radius:50%;
+    border:2px solid var(--stage-color);
+    opacity:0;
+    animation:pulseRing var(--ring-dur) infinite ease-out;
+    transition:border-color .4s ease;
+  }
+  .ring.r2{ animation-delay: calc(var(--ring-dur) / 2); }
+  @keyframes pulseRing{
+    0%{ transform:scale(.82); opacity:.5; }
+    100%{ transform:scale(1.35); opacity:0; }
+  }
+
+  .bomb-wrap{
+    position:relative;
+    width:220px;height:220px;
+    display:flex;align-items:center;justify-content:center;
+    animation:shake var(--shake-dur) infinite ease-in-out;
+    cursor:pointer;
+    touch-action:manipulation;
+    user-select:none;
+  }
+  @keyframes shake{
+    0%,100%{ transform:translate(0,0) rotate(0deg); }
+    20%{ transform:translate(calc(var(--shake-amp) * -1), calc(var(--shake-amp) * .6)) rotate(-1deg); }
+    40%{ transform:translate(var(--shake-amp), calc(var(--shake-amp) * -.5)) rotate(1deg); }
+    60%{ transform:translate(calc(var(--shake-amp) * -.7), var(--shake-amp)) rotate(-.7deg); }
+    80%{ transform:translate(var(--shake-amp), calc(var(--shake-amp) * -.7)) rotate(.7deg); }
+  }
+  .bomb-wrap.exploding{ animation:none; }
+  .bomb-svg{ width:200px;height:200px;position:relative;z-index:2;transition:transform .25s ease, opacity .25s ease;}
+  .bomb-wrap.exploding .bomb-svg{ transform:scale(1.35); opacity:0; }
+
+  .spark{ fill:var(--stage-color); transition:fill .4s ease; animation:flicker var(--ring-dur) infinite ease-in-out; }
+  @keyframes flicker{ 0%,100%{opacity:1;} 50%{opacity:.55;} }
+
+  .tap-hint{
+    text-align:center;color:var(--text-muted);font-size:12.5px;margin-top:6px;line-height:1.6;
+  }
+
+  .shard-burst{ position:absolute; inset:0; pointer-events:none; z-index:3; }
+  .shard{
+    position:absolute; top:50%; left:50%; width:9px; height:15px; margin:-7.5px 0 0 -4.5px;
+    opacity:1; border-radius:1.5px;
+    transition:transform .75s cubic-bezier(.15,.7,.25,1), opacity .75s ease-out;
+  }
+  .shard.fly{ transform:translate(var(--tx), var(--ty)) rotate(var(--rot)) scale(.25); opacity:0; }
+
+  .flash{
+    position:fixed; inset:0; z-index:40; pointer-events:none;
+    background:radial-gradient(circle, rgba(255,214,170,.95) 0%, rgba(255,95,55,.85) 32%, rgba(15,16,18,0) 70%);
+    opacity:0; transition:opacity .8s ease-out;
+  }
+  .flash.show{ opacity:1; transition:opacity .12s ease-in; }
+
+  /* ---- result screen ---- */
+  .result-wrap{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:22px;text-align:center;}
+  .result-title{font-size:24px;font-weight:900;}
+  .result-sub{color:var(--text-muted);font-size:13.5px;line-height:1.7;}
+  .debris-field{
+    position:relative;
+    width:220px;height:220px;
+    margin:0 auto;
+  }
+  .broken-bomb{ width:100%;height:100%; }
+  .debris-shard{
+    position:absolute;top:50%;left:50%;width:9px;height:15px;border-radius:1.5px;
+    background:#3A3F49;
+  }
+
+  /* ---- shared buttons ---- */
+  .bottombar{
+    position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:100%;max-width:460px;
+    padding:16px 20px calc(16px + env(safe-area-inset-bottom));
+    background:linear-gradient(to top, var(--bg-base) 62%, transparent);
+  }
+  button{font-family:inherit;cursor:pointer;border:none;}
+  .btn-primary{
+    width:100%;background:var(--text);color:#0F1012;border-radius:14px;padding:16px;
+    font-size:15.5px;font-weight:900;letter-spacing:.02em;
+  }
+  .btn-ghost{
+    width:100%;background:transparent;color:var(--text-muted);border:1px solid var(--line);
+    border-radius:14px;padding:13px;font-size:13.5px;font-weight:700;margin-top:9px;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <button class="btn-mute" id="muteBtn" type="button">音 ON</button>
+
+  <!-- SETUP -->
+  <div class="screen active" id="screen-setup">
+    <div class="eyebrow">TAP THE BOMB</div>
+    <div class="title">爆弾タップゲーム</div>
+
+    <div class="rule-single">爆発させるなよ。</div>
+  </div>
+
+  <!-- BOMB -->
+  <div class="screen" id="screen-bomb">
+    <div class="stage-row">
+      <div class="stage-label" id="stageLabel">安全</div>
+      <div class="tap-count">タップ回数 <b id="tapCountText">0</b></div>
+    </div>
+    <div class="bomb-stage" id="bombStage">
+      <div class="ring"></div>
+      <div class="ring r2"></div>
+      <div class="bomb-wrap" id="bombWrap">
+        <svg class="bomb-svg" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="bodyGrad" cx="34%" cy="28%" r="78%">
+              <stop offset="0%" stop-color="#50545F"/>
+              <stop offset="52%" stop-color="#1E2026"/>
+              <stop offset="100%" stop-color="#08090A"/>
+            </radialGradient>
+            <linearGradient id="fuseGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#2E2118"/>
+              <stop offset="100%" stop-color="#6B4A2F"/>
+            </linearGradient>
+            <radialGradient id="sparkGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#FFF3D6"/>
+              <stop offset="45%" stop-color="currentColor"/>
+              <stop offset="100%" stop-color="currentColor" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+
+          <ellipse cx="120" cy="205" rx="52" ry="10" fill="#000" opacity="0.35"/>
+
+          <path d="M132 78 C150 66 168 54 176 40" stroke="url(#fuseGrad)" stroke-width="7" fill="none" stroke-linecap="round"/>
+          <g class="spark" style="color:var(--stage-color)">
+            <circle cx="178" cy="36" r="16" fill="url(#sparkGlow)"/>
+            <circle cx="178" cy="36" r="5" fill="#FFF6E5"/>
+          </g>
+
+          <circle cx="120" cy="140" r="72" fill="url(#bodyGrad)"/>
+          <ellipse cx="98" cy="112" rx="26" ry="16" fill="#ffffff" opacity="0.06"/>
+          <circle cx="120" cy="140" r="72" fill="none" stroke="#000" stroke-opacity="0.5" stroke-width="1.5"/>
+        </svg>
+        <div class="shard-burst" id="shardBurst"></div>
+      </div>
+    </div>
+
+    <div class="tap-hint" id="tapHint">爆弾をタップして、次の人へ渡してください</div>
+  </div>
+
+  <!-- RESULT -->
+  <div class="screen" id="screen-result">
+    <div class="result-wrap">
+      <div class="debris-field" id="debrisField">
+        <svg class="broken-bomb" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="bodyGrad2" cx="34%" cy="28%" r="78%">
+              <stop offset="0%" stop-color="#50545F"/>
+              <stop offset="52%" stop-color="#1E2026"/>
+              <stop offset="100%" stop-color="#08090A"/>
+            </radialGradient>
+            <radialGradient id="blastGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#FF8A5C" stop-opacity="0.55"/>
+              <stop offset="100%" stop-color="#FF8A5C" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <circle cx="120" cy="128" r="70" fill="url(#blastGlow)"/>
+
+          <g transform="translate(96,132) rotate(-16)">
+            <path d="M0,-58 A58,58 0 0,0 0,58 L 6,44 L -8,30 L 10,16 L -6,0 L 8,-18 L -10,-34 L 4,-50 Z" fill="url(#bodyGrad2)"/>
+          </g>
+          <g transform="translate(146,126) rotate(14)">
+            <path d="M0,-58 A58,58 0 0,1 0,58 L -7,42 L 9,28 L -9,14 L 7,-2 L -9,-20 L 9,-36 L -5,-50 Z" fill="url(#bodyGrad2)"/>
+          </g>
+        </svg>
+      </div>
+      <div>
+        <div class="result-title">爆発した。</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="flash" id="flash"></div>
+
+<div class="bottombar">
+  <button class="btn-primary" id="mainBtn">はじめる</button>
+  <button class="btn-ghost" id="secondaryBtn" style="display:none;">ルール説明に戻る</button>
+</div>
+
+<script>
+(function(){
+  var STAGES = [
+    { max:9,  color:'#5B8DEF', shakeAmp:0, shakeDur:4.0, ringDur:3.2, label:'安全' },
+    { max:17, color:'#F2A65A', shakeAmp:2, shakeDur:2.4, ringDur:1.9, label:'注意' },
+    { max:23, color:'#FF6B45', shakeAmp:4, shakeDur:1.3, ringDur:1.1, label:'警戒' },
+    { max:29, color:'#FF2E2E', shakeAmp:7, shakeDur:0.65,ringDur:0.55,label:'危険' },
+    { max:999,color:'#FF2E2E', shakeAmp:9, shakeDur:0.45,ringDur:0.4, label:'危険' }
+  ];
+
+  var state = { threshold:0, tapCount:0, exploded:false, muted:false, audioCtx:null };
+
+  function el(id){ return document.getElementById(id); }
+  function show(id){
+    document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+    el(id).classList.add('active');
+  }
+  function vibrate(p){ if(navigator.vibrate){ navigator.vibrate(p); } }
+  function randomInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+  function stageFor(t){
+    for(var i=0;i<STAGES.length;i++){ if(t<=STAGES[i].max) return STAGES[i]; }
+    return STAGES[STAGES.length-1];
+  }
+
+  function applyStage(stage){
+    var root = document.documentElement;
+    root.style.setProperty('--stage-color', stage.color);
+    root.style.setProperty('--shake-amp', stage.shakeAmp+'px');
+    root.style.setProperty('--shake-dur', stage.shakeDur+'s');
+    root.style.setProperty('--ring-dur', stage.ringDur+'s');
+    el('stageLabel').textContent = stage.label;
+  }
+
+  function updateProgressVisual(){
+    el('tapCountText').textContent = state.tapCount;
+  }
+
+  // ---------- sound (Web Audio API, no external files) ----------
+  function ensureAudio(){
+    if(!state.audioCtx){
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if(!AC) return null;
+      state.audioCtx = new AC();
+    }
+    if(state.audioCtx.state === 'suspended'){ state.audioCtx.resume(); }
+    return state.audioCtx;
+  }
+
+  function playTapSound(stageIndex){
+    if(state.muted) return;
+    var ctx = ensureAudio();
+    if(!ctx) return;
+    var t = ctx.currentTime;
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = 'triangle';
+    var freq = 360 + stageIndex*70;
+    osc.frequency.setValueAtTime(freq, t);
+    osc.frequency.exponentialRampToValueAtTime(freq*0.6, t+0.09);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.22, t+0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t+0.11);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t); osc.stop(t+0.13);
+  }
+
+  function playExplosionSound(){
+    if(state.muted) return;
+    var ctx = ensureAudio();
+    if(!ctx) return;
+    var t = ctx.currentTime;
+
+    var osc = ctx.createOscillator();
+    var oGain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(130, t);
+    osc.frequency.exponentialRampToValueAtTime(35, t+0.45);
+    oGain.gain.setValueAtTime(0.7, t);
+    oGain.gain.exponentialRampToValueAtTime(0.001, t+0.5);
+    osc.connect(oGain); oGain.connect(ctx.destination);
+    osc.start(t); osc.stop(t+0.5);
+
+    var bufferSize = Math.floor(ctx.sampleRate * 0.5);
+    var buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    var data = buffer.getChannelData(0);
+    for(var i=0;i<bufferSize;i++){
+      data[i] = (Math.random()*2-1) * Math.pow(1 - i/bufferSize, 2);
+    }
+    var noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    var filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(2400, t);
+    filter.frequency.exponentialRampToValueAtTime(280, t+0.4);
+    var nGain = ctx.createGain();
+    nGain.gain.setValueAtTime(0.9, t);
+    nGain.gain.exponentialRampToValueAtTime(0.001, t+0.45);
+    noise.connect(filter); filter.connect(nGain); nGain.connect(ctx.destination);
+    noise.start(t);
+  }
+
+  function resetRound(){
+    state.threshold = randomInt(15,30);
+    state.tapCount = 0;
+    state.exploded = false;
+    applyStage(STAGES[0]);
+    updateProgressVisual();
+    el('bombWrap').classList.remove('exploding');
+    el('bombStage').style.display = '';
+    el('tapHint').style.display = '';
+    el('shardBurst').innerHTML = '';
+  }
+
+  function onTap(){
+    if(state.exploded) return;
+    state.tapCount++;
+    var stageIdx = STAGES.indexOf(stageFor(state.tapCount));
+    var stage = STAGES[stageIdx];
+    applyStage(stage);
+    updateProgressVisual();
+    vibrate([12]);
+    playTapSound(stageIdx);
+
+    if(state.tapCount >= state.threshold){
+      explode();
+    }
+  }
+  el('bombWrap').addEventListener('click', onTap);
+
+  function explode(){
+    state.exploded = true;
+    vibrate([40,30,40,30,220]);
+    playExplosionSound();
+    el('bombWrap').classList.add('exploding');
+    spawnShards();
+    el('flash').classList.add('show');
+    setTimeout(function(){ el('flash').classList.remove('show'); }, 160);
+
+    setTimeout(function(){
+      renderDebris();
+      show('screen-result');
+    }, 780);
+  }
+
+  function renderDebris(){
+    var field = el('debrisField');
+    Array.prototype.slice.call(field.querySelectorAll('.debris-shard')).forEach(function(s){ s.remove(); });
+    var count = 7;
+    for(var i=0;i<count;i++){
+      var angle = (360/count)*i + (Math.random()*20-10);
+      var dist = 74 + Math.random()*46;
+      var rad = angle * Math.PI/180;
+      var x = Math.round(Math.sin(rad)*dist);
+      var y = Math.round(-Math.cos(rad)*dist);
+      var shard = document.createElement('div');
+      shard.className = 'debris-shard';
+      shard.style.transform = 'translate('+x+'px,'+y+'px) rotate('+Math.round(angle+Math.random()*90-45)+'deg)';
+      shard.style.opacity = (0.45 + Math.random()*0.4).toFixed(2);
+      field.appendChild(shard);
+    }
+  }
+
+  function spawnShards(){
+    var burst = el('shardBurst');
+    var color = getComputedStyle(document.documentElement).getPropertyValue('--stage-color').trim() || '#FF5A45';
+    var count = 14;
+    for(var i=0;i<count;i++){
+      var angle = (360/count)*i + (Math.random()*14-7);
+      var dist = 85 + Math.random()*55;
+      var rad = angle * Math.PI/180;
+      var tx = Math.round(dist*Math.sin(rad));
+      var ty = Math.round(-dist*Math.cos(rad));
+      var shard = document.createElement('div');
+      shard.className = 'shard';
+      shard.style.background = color;
+      shard.style.setProperty('--tx', tx+'px');
+      shard.style.setProperty('--ty', ty+'px');
+      shard.style.setProperty('--rot', (angle+ (Math.random()*180-90))+'deg');
+      burst.appendChild(shard);
+      // trigger transition on next frame
+      (function(sh){ requestAnimationFrame(function(){ requestAnimationFrame(function(){ sh.classList.add('fly'); }); }); })(shard);
+    }
+  }
+
+  var mainBtn = el('mainBtn');
+  var secondaryBtn = el('secondaryBtn');
+
+  mainBtn.addEventListener('click', function(){
+    var current = document.querySelector('.screen.active').id;
+    if(current === 'screen-setup'){
+      resetRound();
+      show('screen-bomb');
+      mainBtn.style.display = 'none';
+      secondaryBtn.style.display = 'none';
+    } else if(current === 'screen-result'){
+      resetRound();
+      show('screen-bomb');
+    }
+  });
+
+  // on the bomb screen there is no bottom bar button (tap the bomb itself);
+  // the bottom bar reappears on setup / result screens.
+  function syncBottomBar(){
+    var current = document.querySelector('.screen.active').id;
+    if(current === 'screen-bomb'){
+      mainBtn.style.display = 'none';
+      secondaryBtn.style.display = 'none';
+    } else if(current === 'screen-result'){
+      mainBtn.style.display = 'block';
+      mainBtn.textContent = 'もう一度あそぶ';
+      secondaryBtn.style.display = 'block';
+      secondaryBtn.textContent = 'ルール説明に戻る';
+    } else {
+      mainBtn.style.display = 'block';
+      mainBtn.textContent = 'はじめる';
+      secondaryBtn.style.display = 'none';
+    }
+  }
+  var observer = new MutationObserver(syncBottomBar);
+  document.querySelectorAll('.screen').forEach(function(s){
+    observer.observe(s, { attributes:true, attributeFilter:['class'] });
+  });
+  syncBottomBar();
+
+  secondaryBtn.addEventListener('click', function(){
+    show('screen-setup');
+  });
+
+  var muteBtn = el('muteBtn');
+  muteBtn.addEventListener('click', function(){
+    state.muted = !state.muted;
+    muteBtn.textContent = state.muted ? '音 OFF' : '音 ON';
+    if(!state.muted){ ensureAudio(); }
+  });
+
+  applyStage(STAGES[0]);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>えこひいきルーレット</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Hachi+Maru+Pop&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-base:#14151A;
+    --bg-surface:#1D1F26;
+    --bg-raised:#262933;
+    --line:#33363F;
+    --gold:#E8C24A;
+    --coral:#FF6B5B;
+    --coral-dim:#8A3F37;
+    --violet:#8B6BFF;
+    --text:#F3F1EA;
+    --text-muted:#9497A6;
+    --radius-card:18px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg-base);
+    color:var(--text);
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #app{
+    width:100%;
+    max-width:460px;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    position:relative;
+    padding:22px 18px 110px;
+  }
+  h1,h2,h3{margin:0;font-weight:900;}
+  .brand{font-family:'Hachi Maru Pop', cursive;font-size:28px;color:var(--coral);line-height:1.3;}
+  .tagline{color:var(--text-muted);font-size:13.5px;margin-top:4px;line-height:1.6;}
+  .step-label{color:var(--text-muted);font-size:12.5px;margin:22px 0 10px;}
+  .screen{display:none;flex-direction:column;gap:16px;animation:fadeIn .25s ease;}
+  .screen.active{display:flex;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+  .card{background:var(--bg-surface);border:1px solid var(--line);border-radius:var(--radius-card);padding:18px;}
+  .field-label{font-size:13px;color:var(--text-muted);margin-bottom:10px;}
+
+  .player-input-row{display:flex;gap:8px;}
+  input[type=text]{
+    flex:1;background:var(--bg-raised);border:1px solid var(--line);border-radius:12px;
+    padding:11px 13px;color:var(--text);font-size:15px;font-family:inherit;
+  }
+  input[type=text]:focus{outline:none;border-color:var(--coral);}
+  button{font-family:inherit;cursor:pointer;border:none;}
+  .btn-add{background:var(--bg-raised);color:var(--coral);border:1px solid var(--coral-dim);border-radius:12px;padding:0 18px;font-size:15px;font-weight:700;}
+  .player-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
+  .player-chip{background:var(--bg-raised);border:1px solid var(--line);border-radius:999px;padding:7px 10px 7px 14px;display:flex;align-items:center;gap:6px;font-size:13.5px;}
+  .player-chip .x{color:var(--text-muted);width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;}
+
+  .legend{font-size:13px;color:var(--text-muted);line-height:1.8;}
+  .legend .fav-tag{color:var(--coral);font-weight:700;}
+  .legend .dbl-tag{color:var(--violet);font-weight:700;}
+
+  .wheel-screen-wrap{display:flex;flex-direction:column;align-items:center;padding:6px 0 4px;}
+  .pointer{
+    width:0;height:0;
+    border-left:11px solid transparent;
+    border-right:11px solid transparent;
+    border-top:18px solid var(--text);
+    margin-bottom:-4px;
+    z-index:3;
+    filter:drop-shadow(0 2px 3px rgba(0,0,0,.4));
+  }
+  .wheel-outer{
+    width:280px;height:280px;
+    border-radius:50%;
+    padding:8px;
+    background:var(--bg-raised);
+    box-shadow:0 10px 30px rgba(0,0,0,.4), inset 0 0 0 2px var(--line);
+    position:relative;
+  }
+  .wheel-disc{
+    width:100%;height:100%;
+    border-radius:50%;
+    position:relative;
+    box-shadow:inset 0 0 0 3px rgba(0,0,0,.25);
+  }
+  .wheel-hub{
+    position:absolute;top:50%;left:50%;
+    width:34px;height:34px;
+    margin:-17px 0 0 -17px;
+    background:var(--bg-base);
+    border:3px solid var(--text);
+    border-radius:50%;
+    z-index:2;
+    display:flex;align-items:center;justify-content:center;
+    font-size:15px;
+  }
+  .wheel-label{
+    position:absolute;
+    transform:translate(-50%,-50%);
+    white-space:nowrap;
+    font-size:12px;
+    font-weight:800;
+    color:#14151A;
+    text-shadow:0 1px 0 rgba(255,255,255,.15);
+    pointer-events:none;
+    text-align:center;
+  }
+  .wheel-label.double-label{
+    font-weight:900;
+    font-size:14.5px;
+  }
+
+  .spin-status{color:var(--text-muted);font-size:13px;margin-top:16px;text-align:center;min-height:18px;}
+
+  .result-card{text-align:center;padding:22px 0 6px;}
+  .result-emoji{font-size:42px;}
+  .result-name{font-family:'Hachi Maru Pop', cursive;color:var(--coral);font-size:26px;margin-top:8px;}
+  .result-name.double{color:var(--violet);}
+  .result-sub{color:var(--text-muted);font-size:13px;margin-top:8px;}
+
+  .bottombar{
+    position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:100%;max-width:460px;
+    padding:14px 18px calc(14px + env(safe-area-inset-bottom));
+    background:linear-gradient(to top, var(--bg-base) 60%, transparent);
+  }
+  .btn-primary{width:100%;background:var(--coral);color:#2A0A05;border-radius:16px;padding:15px;font-size:16px;font-weight:900;box-shadow:0 6px 18px rgba(255,107,91,.25);}
+  .btn-primary:disabled{background:var(--bg-raised);color:var(--text-muted);box-shadow:none;}
+  .btn-ghost{width:100%;background:transparent;color:var(--text-muted);border:1px solid var(--line);border-radius:16px;padding:13px;font-size:14px;font-weight:700;margin-top:9px;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div>
+    <div class="brand">えこひいきルーレット</div>
+    <div class="tagline">毎回どちらか1つだけ発動：当たる確率が上がる人、または当たったら2杯飲む人。演出とともにお楽しみください。</div>
+  </div>
+
+  <!-- SETUP -->
+  <div class="screen active" id="screen-setup">
+    <div class="step-label">参加者を入力(2人以上)</div>
+    <div class="card">
+      <div class="field-label">参加者</div>
+      <div class="player-input-row">
+        <input type="text" id="playerInput" placeholder="名前を入力">
+        <button class="btn-add" id="addPlayerBtn">追加</button>
+      </div>
+      <div class="player-list" id="playerList"></div>
+    </div>
+  </div>
+
+  <!-- WHEEL -->
+  <div class="screen" id="screen-wheel">
+    <div class="step-label">スタートで演出開始 → 自動でスピン</div>
+    <div class="wheel-screen-wrap">
+      <div class="pointer"></div>
+      <div class="wheel-outer">
+        <div class="wheel-disc" id="wheelDisc">
+          <div class="wheel-hub">🍻</div>
+        </div>
+      </div>
+      <div class="spin-status" id="spinStatus">「ルーレットスタート」を押してね</div>
+    </div>
+  </div>
+
+  <!-- RESULT -->
+  <div class="screen" id="screen-result">
+    <div class="step-label">結果</div>
+    <div class="card result-card">
+      <div class="result-emoji" id="resultEmoji">🎯</div>
+      <div class="result-name" id="resultName">-</div>
+      <div class="result-sub" id="resultSub">飲んでください！</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="bottombar">
+  <button class="btn-primary" id="mainBtn">ルーレットを作る</button>
+  <button class="btn-ghost" id="secondaryBtn" style="display:none;">参加者を変える</button>
+  <button class="btn-ghost" id="tertiaryBtn" style="display:none;">対象を選び直す</button>
+</div>
+
+<script>
+(function(){
+  var COLOR_FAVORED = '#FF6B5B';
+  var COLOR_DOUBLE  = '#8B6BFF';
+  var NORMAL_PALETTE = ['#E8C24A','#5FBCD3','#F2A65A','#6FCF97','#F17FB1','#7C9CF0'];
+  var DOUBLE_WEIGHT = 0.5;
+
+  var state = {
+    players: [],
+    order: [],
+    weightedSegs: [],
+    equalSegs: [],
+    labelEls: [],
+    isSpinning: false,
+    currentRotation: 0,
+    mode: null,        // 'favored' or 'double' -- only one active per round
+    favoredWeight: null
+  };
+
+  function el(id){ return document.getElementById(id); }
+  function show(id){
+    document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
+    el(id).classList.add('active');
+  }
+  function vibrate(p){ if(navigator.vibrate){ navigator.vibrate(p); } }
+  function easeOutCubic(t){ return 1 - Math.pow(1-t, 3); }
+  function randomFavoredWeight(){ return Math.round((3 + Math.random()*1) * 10) / 10; }
+
+  // ---------- setup ----------
+  function renderPlayers(){
+    var list = el('playerList');
+    list.innerHTML = '';
+    state.players.forEach(function(name, i){
+      var chip = document.createElement('div');
+      chip.className = 'player-chip';
+      chip.innerHTML = '<span>'+name+'</span>';
+      var x = document.createElement('span');
+      x.className = 'x';
+      x.textContent = '×';
+      x.addEventListener('click', function(){
+        state.players.splice(i,1);
+        renderPlayers();
+        refreshMainButton();
+      });
+      chip.appendChild(x);
+      list.appendChild(chip);
+    });
+    refreshMainButton();
+  }
+  function addPlayerFromInput(){
+    var input = el('playerInput');
+    var name = input.value.trim();
+    if(!name) return;
+    state.players.push(name);
+    input.value = '';
+    renderPlayers();
+  }
+  el('addPlayerBtn').addEventListener('click', addPlayerFromInput);
+  el('playerInput').addEventListener('keydown', function(e){ if(e.key==='Enter'){ addPlayerFromInput(); } });
+
+  function refreshMainButton(){
+    if(el('screen-setup').classList.contains('active')){
+      el('mainBtn').disabled = state.players.length < 2;
+    }
+  }
+
+  // ---------- wheel building ----------
+  function shuffleIndices(n){
+    var a = [];
+    for(var i=0;i<n;i++){ a.push(i); }
+    for(var i=a.length-1;i>0;i--){
+      var j = Math.floor(Math.random()*(i+1));
+      var t=a[i]; a[i]=a[j]; a[j]=t;
+    }
+    return a;
+  }
+
+  function buildWheel(){
+    var n = state.players.length;
+    // exactly one special role is active per round: favored OR double, never both
+    var mode = Math.random() < 0.5 ? 'favored' : 'double';
+    var specialIdx = Math.floor(Math.random() * n);
+    var favoredWeight = mode === 'favored' ? randomFavoredWeight() : null;
+
+    state.mode = mode;
+    state.favoredWeight = favoredWeight;
+    state.order = shuffleIndices(n);
+
+    var totalWeight = 0;
+    var roleOf = {};
+    state.order.forEach(function(idx){
+      var role;
+      if(idx === specialIdx){ role = mode; } else { role = 'normal'; }
+      roleOf[idx] = role;
+      var w = role === 'favored' ? favoredWeight : role === 'double' ? DOUBLE_WEIGHT : 1;
+      totalWeight += w;
+    });
+
+    var cursorW = 0, cursorE = 0;
+    var equalSweep = 360 / n;
+    var weighted = [], equal = [];
+    var normalCounter = 0;
+    state.order.forEach(function(idx){
+      var role = roleOf[idx];
+      var color = role === 'favored' ? COLOR_FAVORED : role === 'double' ? COLOR_DOUBLE : NORMAL_PALETTE[normalCounter % NORMAL_PALETTE.length];
+      if(role === 'normal'){ normalCounter++; }
+
+      var w = role === 'favored' ? favoredWeight : role === 'double' ? DOUBLE_WEIGHT : 1;
+      var wSweep = (w / totalWeight) * 360;
+      weighted.push({ name: state.players[idx], role: role, color: color, start: cursorW, end: cursorW + wSweep, mid: cursorW + wSweep/2 });
+      cursorW += wSweep;
+
+      equal.push({ name: state.players[idx], role: role, color: color, start: cursorE, end: cursorE + equalSweep, mid: cursorE + equalSweep/2 });
+      cursorE += equalSweep;
+    });
+
+    state.weightedSegs = weighted;
+    state.equalSegs = equal;
+    state.currentRotation = 0;
+
+    setupWheelDom();
+    var disc = el('wheelDisc');
+    disc.style.transition = 'none';
+    disc.style.transform = 'rotate(0deg)';
+    drawWheel(state.equalSegs); // start equal, labels placed correctly before paint
+  }
+
+  function renderLegend(mode, specialName, n, favoredWeight){
+    var normalCount = n - 1;
+    var html;
+    if(mode === 'favored'){
+      var totalWeight = favoredWeight + normalCount;
+      var favoredPct = Math.round((favoredWeight/totalWeight)*1000)/10;
+      var normalPct = Math.round((1/totalWeight)*1000)/10;
+      html = '🎯 えこひいき対象: <span class="fav-tag">'+specialName+'</span>(通常の'+favoredWeight+'倍・当選確率 約'+favoredPct+'%)';
+      if(normalCount > 0){ html += '<br>他の'+normalCount+'人はそれぞれ約'+normalPct+'%です'; }
+    } else {
+      var totalWeight2 = DOUBLE_WEIGHT + normalCount;
+      var doublePct = Math.round((DOUBLE_WEIGHT/totalWeight2)*1000)/10;
+      var normalPct2 = Math.round((1/totalWeight2)*1000)/10;
+      html = '🍺 2回飲み対象: <span class="dbl-tag">'+specialName+'</span>(当選確率 約'+doublePct+'%、当たったら2杯)';
+      if(normalCount > 0){ html += '<br>他の'+normalCount+'人はそれぞれ約'+normalPct2+'%です'; }
+    }
+    el('legendCard').innerHTML = html;
+  }
+
+  function setupWheelDom(){
+    var disc = el('wheelDisc');
+    Array.prototype.slice.call(disc.querySelectorAll('.wheel-label')).forEach(function(l){ l.remove(); });
+    state.labelEls = state.equalSegs.map(function(s){
+      var d = document.createElement('div');
+      d.className = 'wheel-label';
+      d.textContent = s.name;
+      disc.appendChild(d);
+      return d;
+    });
+  }
+
+  function gradientFromSegs(segs){
+    return 'conic-gradient(' + segs.map(function(s){ return s.color+' '+s.start+'deg '+s.end+'deg'; }).join(', ') + ')';
+  }
+
+  // Places each label using plain x/y coordinates (no rotate/translate composition)
+  // to avoid any cross-browser transform-origin ambiguity on zero-size boxes.
+  function positionLabels(segs){
+    var disc = el('wheelDisc');
+    var size = disc.clientWidth || 264;
+    var center = size / 2;
+    var radius = center * 0.62;
+    segs.forEach(function(s, i){
+      var elLabel = state.labelEls[i];
+      if(!elLabel) return;
+      var rad = s.mid * Math.PI / 180; // 0deg = top, clockwise, matches conic-gradient
+      var x = center + radius * Math.sin(rad);
+      var y = center - radius * Math.cos(rad);
+      elLabel.style.left = x + 'px';
+      elLabel.style.top = y + 'px';
+    });
+  }
+
+  function drawWheel(segs){
+    el('wheelDisc').style.background = gradientFromSegs(segs);
+    positionLabels(segs);
+  }
+
+  function revealSpecialLabel(){
+    state.equalSegs.forEach(function(s, i){
+      if(s.role === 'double'){
+        var elLabel = state.labelEls[i];
+        if(elLabel){
+          elLabel.textContent = s.name + ' 🍺';
+          elLabel.classList.add('double-label');
+        }
+      }
+    });
+  }
+
+  function lerpSegs(a, b, t){
+    return a.map(function(sa, i){
+      var sb = b[i];
+      return {
+        name: sa.name, role: sa.role, color: sb.color,
+        start: sa.start + (sb.start - sa.start)*t,
+        end: sa.end + (sb.end - sa.end)*t,
+        mid: sa.mid + (sb.mid - sa.mid)*t
+      };
+    });
+  }
+
+  // ---------- grow animation ----------
+  function growWheel(callback){
+    var duration = 1300;
+    var startTime = null;
+    var vibInterval = setInterval(function(){ vibrate([14]); }, 130);
+
+    function frame(ts){
+      if(!startTime) startTime = ts;
+      var t = Math.min((ts-startTime)/duration, 1);
+      var eased = easeOutCubic(t);
+      var segs = lerpSegs(state.equalSegs, state.weightedSegs, eased);
+      drawWheel(segs);
+      if(t < 1){
+        requestAnimationFrame(frame);
+      } else {
+        clearInterval(vibInterval);
+        drawWheel(state.weightedSegs);
+        if(callback) callback();
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- spin ----------
+  function spin(){
+    var landingAngle = Math.random() * 360;
+    var winner = state.weightedSegs.filter(function(s){
+      return landingAngle >= s.start && landingAngle < s.end;
+    })[0] || state.weightedSegs[state.weightedSegs.length-1];
+
+    var baseRotation = state.currentRotation % 360;
+    var deltaToTarget = ((360 - landingAngle) - baseRotation + 360*10) % 360;
+    var extraSpins = 5 * 360;
+    var totalRotation = state.currentRotation + extraSpins + deltaToTarget;
+
+    state.currentRotation = totalRotation;
+    var disc = el('wheelDisc');
+    disc.style.transition = 'transform 6.4s cubic-bezier(.15,.85,.08,1)';
+    void disc.offsetWidth;
+    disc.style.transform = 'rotate('+totalRotation+'deg)';
+
+    setTimeout(function(){
+      state.isSpinning = false;
+      vibrate([160,60,160]);
+      showResult(winner);
+    }, 6500);
+  }
+
+  function showResult(winner){
+    var isDouble = winner.role === 'double';
+    el('resultEmoji').textContent = isDouble ? '🍺' : '🎯';
+    var nameEl = el('resultName');
+    nameEl.textContent = winner.name;
+    nameEl.className = 'result-name' + (isDouble ? ' double' : '');
+    el('resultSub').textContent = isDouble ? '2杯飲んでください！！' : '飲んでください！';
+    el('spinStatus').textContent = 'もう一度スピンできます';
+    el('mainBtn').disabled = false;
+    show('screen-result');
+    el('mainBtn').textContent = 'もう一度スピン';
+    el('secondaryBtn').style.display = 'block';
+    el('tertiaryBtn').style.display = 'none';
+  }
+
+  function startSequence(){
+    if(state.isSpinning) return;
+    state.isSpinning = true;
+    el('mainBtn').disabled = true;
+    el('spinStatus').textContent = 'えこひいき発動中…';
+    revealSpecialLabel();
+    growWheel(function(){
+      el('spinStatus').textContent = '回転中…';
+      spin();
+    });
+  }
+
+  function resetToEqualDisplay(){
+    state.currentRotation = 0;
+    var disc = el('wheelDisc');
+    disc.style.transition = 'none';
+    disc.style.transform = 'rotate(0deg)';
+    void disc.offsetWidth;
+    drawWheel(state.equalSegs);
+    disc.style.transition = '';
+  }
+
+  // ---------- flow ----------
+  var mainBtn = el('mainBtn');
+  var secondaryBtn = el('secondaryBtn');
+  var tertiaryBtn = el('tertiaryBtn');
+
+  mainBtn.addEventListener('click', function(){
+    var current = document.querySelector('.screen.active').id;
+    if(current === 'screen-setup'){
+      if(state.players.length < 2) return;
+      buildWheel();
+      show('screen-wheel');
+      mainBtn.textContent = 'ルーレットスタート';
+      secondaryBtn.style.display = 'block';
+      secondaryBtn.textContent = '参加者を変える';
+      tertiaryBtn.style.display = 'block';
+      el('spinStatus').textContent = '「ルーレットスタート」を押してね';
+    } else if(current === 'screen-wheel'){
+      startSequence();
+    } else if(current === 'screen-result'){
+      buildWheel();
+      show('screen-wheel');
+      mainBtn.textContent = 'ルーレットスタート';
+      secondaryBtn.style.display = 'block';
+      secondaryBtn.textContent = '参加者を変える';
+      tertiaryBtn.style.display = 'block';
+      el('spinStatus').textContent = '「ルーレットスタート」を押してね';
+    }
+  });
+
+  secondaryBtn.addEventListener('click', function(){
+    show('screen-setup');
+    mainBtn.textContent = 'ルーレットを作る';
+    secondaryBtn.style.display = 'none';
+    tertiaryBtn.style.display = 'none';
+    refreshMainButton();
+  });
+
+  tertiaryBtn.addEventListener('click', function(){
+    buildWheel();
+    show('screen-wheel');
+    el('spinStatus').textContent = '「ルーレットスタート」を押してね';
+  });
+
+  renderPlayers();
+})();
+</script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>ファイブゲーム</title>
+<title>飲み会ゲーム集</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Hachi+Maru+Pop&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
@@ -12,11 +12,6 @@
     --bg-surface:#1D1F26;
     --bg-raised:#262933;
     --line:#33363F;
-    --gold:#E8C24A;
-    --gold-dim:#8A712F;
-    --coral:#FF6B5B;
-    --coral-dim:#8A3F37;
-    --mint:#6FCF97;
     --text:#F3F1EA;
     --text-muted:#9497A6;
     --radius-card:18px;
@@ -36,514 +31,106 @@
     width:100%;
     max-width:460px;
     min-height:100vh;
-    display:flex;
-    flex-direction:column;
-    position:relative;
-    padding:22px 18px 110px;
+    padding:26px 18px 40px;
   }
-  h1,h2,h3{margin:0;font-weight:900;}
-  .brand{
-    font-family:'Hachi Maru Pop', cursive;
-    font-size:30px;
-    color:var(--gold);
-    line-height:1.3;
+  .brand{font-family:'Hachi Maru Pop', cursive;font-size:30px;color:var(--text);line-height:1.3;}
+  .brand span{ -webkit-text-fill-color: initial; }
+  .tagline{color:var(--text-muted);font-size:13.5px;margin-top:6px;line-height:1.6;}
+
+  .game-list{display:flex;flex-direction:column;gap:12px;margin-top:26px;}
+  .game-card{
+    display:flex;align-items:center;gap:14px;
+    background:var(--bg-surface);
+    border:1.5px solid var(--line);
+    border-radius:var(--radius-card);
+    padding:16px;
+    text-decoration:none;
+    color:var(--text);
+    transition:border-color .15s, background .15s, transform .1s;
   }
-  .tagline{color:var(--text-muted);font-size:13.5px;margin-top:4px;line-height:1.6;}
-  .step-label{color:var(--text-muted);font-size:12.5px;margin:22px 0 10px;}
-  .screen{display:none;flex-direction:column;gap:16px;animation:fadeIn .25s ease;}
-  .screen.active{display:flex;}
-  @keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
-
-  .card{background:var(--bg-surface);border:1px solid var(--line);border-radius:var(--radius-card);padding:18px;}
-  .field-label{font-size:13px;color:var(--text-muted);margin-bottom:10px;}
-
-  .diff-grid{display:flex;flex-direction:column;gap:10px;}
-  .diff-card{
-    background:var(--bg-surface);border:1.5px solid var(--line);border-radius:var(--radius-card);
-    padding:14px 16px;display:flex;align-items:center;gap:14px;cursor:pointer;
-    transition:border-color .15s, background .15s;
-  }
-  .diff-card.selected{border-color:var(--gold);background:var(--bg-raised);}
-  .diff-num{
-    font-family:'Hachi Maru Pop', cursive;font-size:22px;color:var(--bg-base);
-    background:var(--gold-dim);width:38px;height:38px;border-radius:50%;
-    display:flex;align-items:center;justify-content:center;flex-shrink:0;
-  }
-  .diff-card.selected .diff-num{background:var(--gold);}
-  .diff-name{font-weight:700;font-size:15.5px;}
-  .diff-desc{color:var(--text-muted);font-size:12.5px;margin-top:2px;line-height:1.5;}
-
-  .time-row{display:flex;gap:10px;}
-  .time-chip{
-    flex:1;background:var(--bg-surface);border:1.5px solid var(--line);border-radius:14px;
-    padding:14px 0;text-align:center;font-weight:700;font-size:15px;cursor:pointer;
-    transition:border-color .15s, background .15s;
-  }
-  .time-chip.selected{border-color:var(--gold);background:var(--bg-raised);color:var(--gold);}
-  .time-chip .unit{font-size:11px;color:var(--text-muted);display:block;margin-top:2px;font-weight:400;}
-  .time-chip.selected .unit{color:var(--text-muted);}
-
-  .rule-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;}
-  .rule-item{display:flex;gap:12px;background:var(--bg-raised);border-radius:14px;padding:13px 14px;align-items:flex-start;transition:background .15s, border-color .15s;border:1px solid transparent;}
-  .rule-item.editable{cursor:pointer;}
-  .rule-item.editable:active{background:var(--bg-surface);border-color:var(--gold-dim);}
-  .rule-idx{font-family:'Hachi Maru Pop', cursive;color:var(--gold);font-size:17px;flex-shrink:0;width:20px;}
-  .rule-text{font-size:14.5px;line-height:1.55;flex:1;}
-  .rule-swap{color:var(--text-muted);font-size:11px;flex-shrink:0;align-self:center;}
-
-  .badge-row{display:flex;gap:8px;flex-wrap:wrap;}
-  .badge{background:var(--bg-raised);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12.5px;color:var(--text-muted);}
-  .badge b{color:var(--gold);}
-
-  .side-cards{display:flex;flex-direction:column;gap:10px;}
-  .word-card{border-radius:16px;padding:15px 16px;cursor:default;transition:background .15s;}
-  .word-card .word-label{font-size:12px;color:var(--text-muted);margin-bottom:7px;line-height:1.6;}
-  .word-card .word-text{font-family:'Hachi Maru Pop', cursive;font-size:19px;line-height:1.5;}
-  .word-card .word-swap{font-size:11px;color:var(--text-muted);margin-top:8px;}
-
-  .word-card.gold{background:var(--bg-raised);border:1.5px dashed var(--gold-dim);}
-  .word-card.gold .word-text{color:var(--gold);}
-  .word-card.gold.editable{cursor:pointer;}
-  .word-card.gold.editable:active{border-color:var(--gold);}
-
-  .word-card.coral{background:var(--bg-raised);border:1.5px dashed var(--coral-dim);}
-  .word-card.coral .word-text{color:var(--coral);}
-  .word-card.coral.editable{cursor:pointer;}
-  .word-card.coral.editable:active{border-color:var(--coral);}
-
-  .timer-wrap{display:flex;flex-direction:column;align-items:center;padding:30px 0 10px;}
-  .timer-num{font-family:'Hachi Maru Pop', cursive;font-size:64px;color:var(--gold);letter-spacing:1px;}
-  .timer-sub{color:var(--text-muted);font-size:13px;margin-top:6px;}
-  .timer-ring{
-    width:210px;height:210px;border-radius:50%;
-    border:6px solid var(--bg-raised);
+  .game-card:active{transform:scale(.98);background:var(--bg-raised);}
+  .game-icon{
+    width:52px;height:52px;border-radius:16px;
     display:flex;align-items:center;justify-content:center;
-    position:relative;margin-bottom:6px;
+    font-size:24px;flex-shrink:0;
   }
-  .timer-ring.tick{border-color:var(--gold);}
+  .game-info{flex:1;min-width:0;}
+  .game-title{font-weight:900;font-size:16px;}
+  .game-tagline{color:var(--text-muted);font-size:12.5px;margin-top:4px;line-height:1.5;}
+  .game-chevron{color:var(--text-muted);font-size:20px;flex-shrink:0;}
 
-  .end-hero{text-align:center;padding:20px 0 6px;}
-  .end-hero .medal{font-size:40px;}
-  .end-title{font-family:'Hachi Maru Pop', cursive;color:var(--gold);font-size:24px;margin-top:6px;}
-
-  .seino-card{
-    background:var(--gold);color:#1A1300;border-radius:18px;padding:22px;text-align:center;cursor:pointer;
+  .empty-note{
+    margin-top:26px;color:var(--text-muted);font-size:13px;
+    background:var(--bg-surface);border:1px dashed var(--line);border-radius:var(--radius-card);
+    padding:16px;line-height:1.7;
   }
-  .seino-cue{font-family:'Hachi Maru Pop', cursive;font-size:18px;margin-bottom:10px;}
-  .seino-word{font-family:'Hachi Maru Pop', cursive;font-size:24px;font-weight:700;line-height:1.5;filter:blur(10px);transition:filter .2s;user-select:none;}
-  .seino-word.revealed{filter:blur(0);}
-  .seino-hint{font-size:12.5px;margin-top:10px;opacity:.75;}
 
-  .bottombar{
-    position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:100%;max-width:460px;
-    padding:14px 18px calc(14px + env(safe-area-inset-bottom));
-    background:linear-gradient(to top, var(--bg-base) 60%, transparent);
-  }
-  .btn-primary{width:100%;background:var(--gold);color:#1A1300;border-radius:16px;padding:15px;font-size:16px;font-weight:900;box-shadow:0 6px 18px rgba(232,194,74,.25);}
-  .btn-primary:disabled{background:var(--bg-raised);color:var(--text-muted);box-shadow:none;}
-  button{font-family:inherit;cursor:pointer;border:none;}
-  .btn-ghost{width:100%;background:transparent;color:var(--text-muted);border:1px solid var(--line);border-radius:16px;padding:13px;font-size:14px;font-weight:700;margin-top:9px;}
-
-  .overlay{
-    position:fixed;inset:0;background:var(--coral);z-index:50;display:none;
-    flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px;
-    animation:flashIn .18s ease;
-  }
-  .overlay.show{display:flex;}
-  @keyframes flashIn{from{opacity:0;}to{opacity:1;}}
-  .overlay .eyebrow{font-family:'Hachi Maru Pop', cursive;color:#1A0700;font-size:24px;margin-bottom:16px;}
-  .overlay .prompt{color:#1A0700;font-size:20px;font-weight:900;line-height:1.6;margin-bottom:28px;}
-  .overlay button{background:#1A0700;color:#fff;border-radius:14px;padding:13px 26px;font-size:15px;font-weight:700;}
+  .footer-note{margin-top:30px;color:var(--text-muted);font-size:11.5px;text-align:center;line-height:1.7;}
 </style>
 </head>
 <body>
 <div id="app">
+  <div class="brand">🍻 飲み会ゲーム集</div>
+  <div class="tagline">遊びたいゲームをタップしてね。</div>
 
-  <div>
-    <div class="brand">ファイブゲーム</div>
-    <div class="tagline">難易度と時間を選ぶだけ。ルールは自動で抽選、判定はテーブルにおまかせ。</div>
+  <div class="game-list" id="gameList"></div>
+  <div class="empty-note" id="emptyNote" style="display:none;">
+    まだゲームが登録されていません。games.js にゲームを追加してください。
   </div>
 
-  <!-- SETUP -->
-  <div class="screen active" id="screen-setup">
-    <div class="step-label">手順 1 / 3 ・ 難易度と時間</div>
-
-    <div>
-      <div class="field-label">難易度</div>
-      <div class="diff-grid" id="diffGrid"></div>
-    </div>
-
-    <div>
-      <div class="field-label">ゲーム時間</div>
-      <div class="time-row" id="timeRow"></div>
-    </div>
-  </div>
-
-  <!-- RULES -->
-  <div class="screen" id="screen-rules">
-    <div class="step-label">手順 2 / 3 ・ 今回のルール</div>
-    <div class="badge-row">
-      <div class="badge" id="badgeDiff">-</div>
-      <div class="badge" id="badgeTime">-</div>
-    </div>
-    <div class="card">
-      <div class="field-label">気に入らないルールはタップで変更</div>
-      <ul class="rule-list" id="ruleList"></ul>
-    </div>
-    <div class="side-cards">
-      <div class="word-card coral" id="ngWordCardRules" style="display:none;">
-        <div class="word-label">NGワード(この単語を言ったら即アウト)</div>
-        <div class="word-text" id="ngWordTextRules">-</div>
-        <div class="word-swap">タップで変更</div>
-      </div>
-      <div class="word-card gold" id="wordCardRules" style="display:none;">
-        <div class="word-label">共通ワード<br>今すぐ覚えて。タイムアップ後、「せーの」で全員同時に言えなかったらアウト</div>
-        <div class="word-text" id="wordTextRules">-</div>
-      </div>
-    </div>
-    <button class="btn-ghost" id="rerollBtn">全部引き直す</button>
-  </div>
-
-  <!-- PLAY -->
-  <div class="screen" id="screen-play">
-    <div class="step-label">手順 3 / 3 ・ 進行中</div>
-    <div class="badge-row">
-      <div class="badge" id="badgeDiff2">-</div>
-    </div>
-    <div class="timer-wrap">
-      <div class="timer-ring" id="timerRing"><div class="timer-num" id="timerNum">05:00</div></div>
-      <div class="timer-sub" id="timerSub">1つでも破ったらアウト。判定はその場で。</div>
-    </div>
-    <div class="word-card coral" id="ngWordCardPlay" style="display:none;">
-      <div class="word-label">NGワード(言ったら即アウト)</div>
-      <div class="word-text" id="ngWordTextPlay">-</div>
-    </div>
-    <div class="card">
-      <div class="field-label">今回のルール</div>
-      <ul class="rule-list" id="ruleListPlay" style="gap:8px;"></ul>
-    </div>
-  </div>
-
-  <!-- END -->
-  <div class="screen" id="screen-end">
-    <div class="step-label">タイムアップ</div>
-    <div class="card end-hero">
-      <div class="medal">🍻</div>
-      <div class="end-title">おつかれさまでした</div>
-    </div>
-    <div class="seino-card" id="seinoCard" style="display:none;">
-      <div class="seino-cue">せーの！</div>
-      <div class="seino-word" id="seinoWord">-</div>
-      <div class="seino-hint">タップして確認・全員で同時に言えなかった人はアウト</div>
-    </div>
-  </div>
-
+  <div class="footer-note">新しいゲームは games.js に追記するだけで、ここに自動で並びます。</div>
 </div>
 
-<div class="bottombar">
-  <button class="btn-primary" id="mainBtn">ルールを引く</button>
-  <button class="btn-ghost" id="secondaryBtn" style="display:none;">戻る</button>
-</div>
-
-<div class="overlay" id="happeningOverlay">
-  <div class="eyebrow">ハプニング発生！</div>
-  <div class="prompt" id="happeningPrompt">-</div>
-  <button id="happeningDismiss">確認した</button>
-</div>
-
+<script src="games.js"></script>
 <script>
 (function(){
-  // ---------- data ----------
-  var DIFF_META = [
-    {id:1, key:'easy', name:'かんたん', desc:'5ルールのみ。初めての人にも遊びやすい'},
-    {id:2, key:'normal', name:'ふつう', desc:'6ルール+NGワード+共通ワード'},
-    {id:3, key:'extreme', name:'エクストリーム', desc:'7ルール+NGワード+共通ワード(長め)'}
-  ];
-
-  var TIME_OPTS = [5,10,15];
-
-  // 全難易度共通のルールプール(かんたん5個・ふつう6個・エクストリーム7個を抽選)
-  var COMMON_POOL = [
-    "英語禁止(英単語を一切使わない)",
-    "手を叩くの禁止",
-    "指差し禁止",
-    "飲むときは左手でグラスを持つ",
-    "飲んでグラスを置くときは「トントン」と机を鳴らす",
-    "首から上を触るの禁止",
-    "スマホを触るの禁止",
-    "通知が来た人はアウト",
-    "敬語禁止",
-    "トイレに行くときは右隣の人にだけこっそり伝える"
-  ];
-
-  var NG_WORDS = ["それな","たしかに","なるほど","めっちゃ","今日","明日","電車","時間"];
-
-  var COMMON_WORD_SIMPLE = ["とりあえず生","お疲れ様です","いただきます","かんぱーい","生中ください"];
-  var COMMON_WORD_LONG = ["隣の客はよく柿食う客だ","生麦生米生卵","東京特許許可局","赤巻紙青巻紙黄巻紙","この釘は引き抜きにくい釘だ"];
-
-  var HAPPENINGS = [
-    "全員でこの中の誰かを指差せ。一番多く指された人がアウト候補",
-    "最後にテーブルを軽く叩いた人がアウト",
-    "声を出さずに指で「5」を作れ。一番遅い人がアウト候補",
-    "全員で同時に片足立ちしろ。先に崩れた人がアウト候補",
-    "隣の人とジャンケン、負けたら一口"
-  ];
-
-  var POOL_COUNT = {easy:5, normal:6, extreme:7};
-
-  // ---------- state ----------
-  // state.rules: array of {base: ruleText} -- pool rules only, NG is tracked separately
-  var state = {
-    difficulty: null,
-    minutes: null,
-    rules: [],
-    ngWord: null,
-    commonWord: null,
-    timerId: null,
-    remaining: 0,
-    happeningTO: null
-  };
-
-  // ---------- helpers ----------
-  function shuffle(arr){
-    var a = arr.slice();
-    for(var i=a.length-1;i>0;i--){
-      var j = Math.floor(Math.random()*(i+1));
-      var t=a[i]; a[i]=a[j]; a[j]=t;
-    }
-    return a;
+  function hexToRgba(hex, alpha){
+    var h = hex.replace('#','');
+    var r = parseInt(h.substring(0,2),16);
+    var g = parseInt(h.substring(2,4),16);
+    var b = parseInt(h.substring(4,6),16);
+    return 'rgba('+r+','+g+','+b+','+alpha+')';
   }
-  function pickN(pool,n){ return shuffle(pool).slice(0,n); }
-  function pick1(pool){ return pool[Math.floor(Math.random()*pool.length)]; }
-  function el(id){ return document.getElementById(id); }
-  function show(id){
-    document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
-    el(id).classList.add('active');
-  }
-  function vibrate(pattern){ if(navigator.vibrate){ navigator.vibrate(pattern); } }
-  function pad(n){ return n<10 ? '0'+n : ''+n; }
-  function ngPoolForDifficulty(){ return NG_WORDS; }
 
-  // ---------- setup screen ----------
-  var diffGrid = el('diffGrid');
-  DIFF_META.forEach(function(d){
-    var card = document.createElement('div');
-    card.className = 'diff-card';
-    card.innerHTML = '<div class="diff-num">'+d.id+'</div><div><div class="diff-name">'+d.name+'</div><div class="diff-desc">'+d.desc+'</div></div>';
-    card.addEventListener('click', function(){
-      document.querySelectorAll('.diff-card').forEach(function(c){c.classList.remove('selected');});
-      card.classList.add('selected');
-      state.difficulty = d.key;
-      refreshMainButton();
-    });
-    diffGrid.appendChild(card);
+  var games = (window.GAMES || []);
+  var list = document.getElementById('gameList');
+
+  if(games.length === 0){
+    document.getElementById('emptyNote').style.display = 'block';
+    return;
+  }
+
+  games.forEach(function(g){
+    var a = document.createElement('a');
+    a.className = 'game-card';
+    a.href = g.file;
+
+    var icon = document.createElement('div');
+    icon.className = 'game-icon';
+    icon.textContent = g.emoji || '🎮';
+    icon.style.background = hexToRgba(g.accent || '#E8C24A', 0.16);
+    icon.style.color = g.accent || '#E8C24A';
+
+    var info = document.createElement('div');
+    info.className = 'game-info';
+    var title = document.createElement('div');
+    title.className = 'game-title';
+    title.textContent = g.title;
+    var tag = document.createElement('div');
+    tag.className = 'game-tagline';
+    tag.textContent = g.tagline || '';
+    info.appendChild(title);
+    info.appendChild(tag);
+
+    var chevron = document.createElement('div');
+    chevron.className = 'game-chevron';
+    chevron.textContent = '›';
+
+    a.appendChild(icon);
+    a.appendChild(info);
+    a.appendChild(chevron);
+    list.appendChild(a);
   });
-
-  var timeRow = el('timeRow');
-  TIME_OPTS.forEach(function(m){
-    var chip = document.createElement('div');
-    chip.className = 'time-chip';
-    chip.innerHTML = m + '<span class="unit">分</span>';
-    chip.addEventListener('click', function(){
-      document.querySelectorAll('.time-chip').forEach(function(c){c.classList.remove('selected');});
-      chip.classList.add('selected');
-      state.minutes = m;
-      refreshMainButton();
-    });
-    timeRow.appendChild(chip);
-  });
-
-  function refreshMainButton(){
-    if(!el('screen-setup').classList.contains('active')) return;
-    el('mainBtn').disabled = !(state.difficulty && state.minutes);
-  }
-
-  // ---------- rules ----------
-  function drawRules(){
-    var n = POOL_COUNT[state.difficulty];
-    var poolPicks = pickN(COMMON_POOL, n);
-    state.rules = poolPicks.map(function(text){ return {base:text}; });
-
-    state.ngWord = null;
-    state.commonWord = null;
-
-    if(state.difficulty === 'normal'){
-      state.ngWord = pick1(NG_WORDS);
-      state.commonWord = pick1(COMMON_WORD_SIMPLE);
-    } else if(state.difficulty === 'extreme'){
-      state.ngWord = pick1(NG_WORDS);
-      state.commonWord = pick1(COMMON_WORD_LONG);
-    }
-
-    renderAll();
-  }
-
-  function renderAll(){
-    renderRuleList('ruleList', true);
-    renderRuleList('ruleListPlay', false);
-
-    var diffLabel = DIFF_META.filter(function(d){return d.key===state.difficulty;})[0].name;
-    el('badgeDiff').innerHTML = '難易度: <b>'+diffLabel+'</b>';
-    el('badgeDiff2').innerHTML = '難易度: <b>'+diffLabel+'</b>';
-    el('badgeTime').innerHTML = '時間: <b>'+state.minutes+'分</b>';
-
-    if(state.ngWord){
-      el('ngWordTextRules').textContent = state.ngWord;
-      el('ngWordTextPlay').textContent = state.ngWord;
-      el('ngWordCardRules').style.display = 'block';
-      el('ngWordCardPlay').style.display = 'block';
-    } else {
-      el('ngWordCardRules').style.display = 'none';
-      el('ngWordCardPlay').style.display = 'none';
-    }
-
-    if(state.commonWord){
-      el('wordTextRules').textContent = state.commonWord;
-      el('wordCardRules').style.display = 'block';
-    } else {
-      el('wordCardRules').style.display = 'none';
-    }
-  }
-
-  function renderRuleList(targetId, editable){
-    var ul = el(targetId);
-    ul.innerHTML = '';
-    state.rules.forEach(function(r, i){
-      var li = document.createElement('li');
-      li.className = 'rule-item' + (editable ? ' editable' : '');
-      li.innerHTML = '<div class="rule-idx">'+(i+1)+'</div><div class="rule-text">'+r.base+'</div>'+(editable ? '<div class="rule-swap">タップで変更</div>' : '');
-      if(editable){
-        li.addEventListener('click', function(){ rerollOne(i); });
-      }
-      ul.appendChild(li);
-    });
-  }
-
-  function rerollOne(index){
-    var rule = state.rules[index];
-    var usedTexts = state.rules.map(function(r){return r.base;});
-    var available = COMMON_POOL.filter(function(t){ return usedTexts.indexOf(t) === -1; });
-    if(available.length === 0){ available = COMMON_POOL; }
-    rule.base = pick1(available);
-    renderAll();
-  }
-
-  el('ngWordCardRules').addEventListener('click', function(){
-    if(!state.ngWord) return;
-    var pool = ngPoolForDifficulty();
-    var available = pool.filter(function(w){ return w !== state.ngWord; });
-    if(available.length === 0){ available = pool; }
-    state.ngWord = pick1(available);
-    renderAll();
-  });
-
-  el('rerollBtn').addEventListener('click', drawRules);
-
-  // ---------- timer ----------
-  function startTimer(){
-    state.remaining = state.minutes * 60;
-    updateTimerDisplay();
-    clearInterval(state.timerId);
-    state.timerId = setInterval(function(){
-      state.remaining--;
-      updateTimerDisplay();
-      if(state.remaining <= 0){
-        clearInterval(state.timerId);
-        finishTimer();
-      }
-    }, 1000);
-    if(state.difficulty === 'extreme'){
-      scheduleHappening();
-    }
-  }
-  function updateTimerDisplay(){
-    var m = Math.floor(state.remaining/60);
-    var s = state.remaining%60;
-    el('timerNum').textContent = pad(m)+':'+pad(s);
-    var ring = el('timerRing');
-    if(state.remaining <= 10 && state.remaining > 0){
-      ring.classList.add('tick');
-    } else {
-      ring.classList.remove('tick');
-    }
-  }
-  function finishTimer(){
-    clearTimeout(state.happeningTO);
-    vibrate([200,100,200,100,400]);
-    var seinoWordEl = el('seinoWord');
-    seinoWordEl.classList.remove('revealed');
-    if(state.commonWord){
-      seinoWordEl.textContent = state.commonWord;
-      el('seinoCard').style.display = 'block';
-    } else {
-      el('seinoCard').style.display = 'none';
-    }
-    show('screen-end');
-    el('mainBtn').textContent = 'もう一度あそぶ';
-    el('secondaryBtn').style.display = 'none';
-  }
-  el('seinoCard').addEventListener('click', function(){
-    el('seinoWord').classList.toggle('revealed');
-  });
-
-  function scheduleHappening(){
-    clearTimeout(state.happeningTO);
-    var delay = (25 + Math.random()*30) * 1000;
-    state.happeningTO = setTimeout(function(){
-      if(!el('screen-play').classList.contains('active')) return;
-      var prompt = HAPPENINGS[Math.floor(Math.random()*HAPPENINGS.length)];
-      el('happeningPrompt').textContent = prompt;
-      el('happeningOverlay').classList.add('show');
-      vibrate([120,80,120,80,220]);
-    }, delay);
-  }
-  el('happeningDismiss').addEventListener('click', function(){
-    el('happeningOverlay').classList.remove('show');
-    if(state.remaining > 0){ scheduleHappening(); }
-  });
-
-  // ---------- flow ----------
-  var mainBtn = el('mainBtn');
-  var secondaryBtn = el('secondaryBtn');
-
-  mainBtn.addEventListener('click', function(){
-    var current = document.querySelector('.screen.active').id;
-    if(current === 'screen-setup'){
-      if(!state.difficulty || !state.minutes) return;
-      drawRules();
-      show('screen-rules');
-      mainBtn.textContent = 'この内容でスタート';
-      secondaryBtn.style.display = 'block';
-      secondaryBtn.textContent = '設定に戻る';
-    } else if(current === 'screen-rules'){
-      show('screen-play');
-      startTimer();
-      mainBtn.textContent = '途中で終了する';
-      secondaryBtn.style.display = 'none';
-    } else if(current === 'screen-play'){
-      clearInterval(state.timerId);
-      clearTimeout(state.happeningTO);
-      finishTimer();
-    } else if(current === 'screen-end'){
-      show('screen-rules');
-      drawRules();
-      mainBtn.textContent = 'この内容でスタート';
-      secondaryBtn.style.display = 'block';
-      secondaryBtn.textContent = '設定に戻る';
-    }
-  });
-
-  secondaryBtn.addEventListener('click', function(){
-    var current = document.querySelector('.screen.active').id;
-    if(current === 'screen-rules'){
-      show('screen-setup');
-      mainBtn.textContent = 'ルールを引く';
-      secondaryBtn.style.display = 'none';
-      refreshMainButton();
-    }
-  });
-
-  refreshMainButton();
 })();
 </script>
 </body>
