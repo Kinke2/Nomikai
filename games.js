@@ -69,6 +69,22 @@ window.GAMES = [
     emoji: '👾',
     accent: '#C792EA',
     file: 'games/nanja-monja.html'
+  },
+  {
+    id: 'mine-babanuki',
+    title: '地雷ババ引き',
+    tagline: 'マスを順にめくる。地雷はたった1つ。引いたら、暗転。',
+    emoji: '🚩',
+    accent: '#5FD0A8',
+    file: 'games/mine-babanuki.html'
+  },
+  {
+    id: 'last-tap',
+    title: 'ラストタップ',
+    tagline: '指を置いて、目標の秒数で離せ。いちばんズレた人が飲む。',
+    emoji: '⏱️',
+    accent: '#8B8FF0',
+    file: 'games/last-tap.html'
   }
 
   // 新しいゲームはこの下に追加していく
