@@ -45,6 +45,30 @@ window.GAMES = [
     emoji: '🎲',
     accent: '#E8C24A',
     file: 'games/chinchiro.html'
+  },
+  {
+    id: 'high-low',
+    title: 'ハイ&ロー',
+    tagline: '次のカードは今より強い?弱い?トランプ1デッキで対戦。',
+    emoji: '🃏',
+    accent: '#C8283C',
+    file: 'games/high-low.html'
+  },
+  {
+    id: 'horse-race',
+    title: '競馬',
+    tagline: '頭数を決めてスタート。ビリになった馬の番号を発表。',
+    emoji: '🐎',
+    accent: '#5BAE6B',
+    file: 'games/horse-race.html'
+  },
+  {
+    id: 'nanja-monja',
+    title: 'なんじゃもんじゃ',
+    tagline: '得体の知れない生物に名付けて、再登場したら早い者勝ち。',
+    emoji: '👾',
+    accent: '#C792EA',
+    file: 'games/nanja-monja.html'
   }
 
   // 新しいゲームはこの下に追加していく
