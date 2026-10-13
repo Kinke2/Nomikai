@@ -131,7 +131,7 @@
   function view(G, pid){
     var v = { phase: G.phase, round: G.round, part: G.part, inPart: inPart(G, pid), joker: G.joker, aceHigh: G.aceHigh };
     if(G.phase === 'ready' || G.phase === 'count'){ v.myReady = !!G.ready[pid]; v.myUp = !!G.up[pid]; v.readyCount = Object.keys(G.ready).length; v.upCount = Object.keys(G.up).filter(function(id){ return G.up[id]; }).length; v.n = G.part.length; v.countNo = G.countNo; }
-    if(G.phase === 'show'){ v.myCard = inPart(G, pid) ? G.cards[pid] : null; v.mySwapped = !!G.swapped[pid]; v.swapped = Object.keys(G.swapped); v.myDown = !!G.down[pid]; var ac = activeIds(G); v.allDown = ac.length > 0 && ac.every(function(id){ return G.down[id]; }); }       // 自分のカードだけ(他人のカードは送らない)
+    if(G.phase === 'show'){ v.myCard = inPart(G, pid) ? G.cards[pid] : null; v.mySwapped = !!G.swapped[pid]; v.swapped = Object.keys(G.swapped); v.myOld = G.old[pid] || null; v.myDown = !!G.down[pid]; var ac = activeIds(G); v.allDown = ac.length > 0 && ac.every(function(id){ return G.down[id]; }); }       // 自分のカードだけ(他人のカードは送らない)
     if(G.phase === 'result'){
       var st = {}, mx = -1, mn = 1e9;
       G.part.forEach(function(id){ st[id] = strength(G.cards[id], G.aceHigh); mx = Math.max(mx, st[id]); mn = Math.min(mn, st[id]); });
@@ -211,7 +211,7 @@
     '.ipfi.pl{animation:ipPeel .75s cubic-bezier(.3,.7,.3,1) both;}.ipfi.un{animation:ipUnpeel .6s ease-in-out both;}',
     '.ipribbon{position:absolute;left:50%;top:-13px;transform:translateX(-50%);z-index:5;background:linear-gradient(180deg,#ffd98a,#f0a93a);color:#3a2300;font-weight:900;font-size:13px;padding:3px 14px;border-radius:999px;box-shadow:0 4px 12px rgba(0,0,0,.5);white-space:nowrap;}',
     '.ipswb{position:absolute;left:50%;top:50%;z-index:6;transform:translate(-50%,-50%);font-size:min(9vw,34px);font-weight:900;color:#fff;background:rgba(229,72,77,.92);padding:8px 22px;border-radius:14px;white-space:nowrap;box-shadow:0 8px 30px rgba(0,0,0,.6);opacity:0;pointer-events:none;}',
-    '.ipglow{position:absolute;inset:-6px;border-radius:14px;box-shadow:0 0 0 3px #ffd98a,0 0 36px 8px rgba(255,200,90,.85);opacity:0;pointer-events:none;z-index:4;}',
+    '.ipglow{position:absolute;inset:-3px;border-radius:14px;box-shadow:0 0 0 3px #ffd98a,0 0 8px 2px rgba(255,200,90,.9);opacity:0;pointer-events:none;z-index:4;}',
     '@keyframes ipPeel{0%{transform:rotateY(0);}28%{transform:rotateY(-62deg) rotateX(10deg) translateY(-7%) scale(1.06);}100%{transform:rotateY(-180deg);}}',
     '@keyframes ipUnpeel{0%{transform:rotateY(-180deg);}100%{transform:rotateY(0);}}',
     '@keyframes ipOut{0%{transform:none;opacity:1;}100%{transform:translate(-135%,40%) rotate(-28deg) scale(.8);opacity:0;}}',
@@ -252,18 +252,21 @@
   function ribbon(anim){ return TILT.swapped ? '<div class="ipribbon"' + (anim ? ' style="animation:' + anim + '"' : '') + '>🔁 交換済</div>' : ''; }
   // 交換の演出(約1.9秒): 今の札が左下へ飛んでいき → 山札から新しい札が右上から滑り込む → 「交換!」バナーと光 → 額に当てているなら、ぺろっと表に返る。
   // 再描画されても途中から続けられるよう、経過時間ぶん animation-delay を負にずらす。札の中身は裏向きか、すでに他人から見えている札だけを使う(自分の札は見せない)
-  var SW_MS = 1950;
+  var SW_MS = 4400;
+  // 交換の流れ: ①今のカードがぺろっとめくれて何だったか見える → ②そのカードが左下へ捨てられる → ③山札から新しいカードが滑り込む → ④「交換!」バナーと光。
+  // 新しいカードの中身は見せない(裏向きで登場。額に当てていれば、そのあとぺろっと表になる)。交換前の中身は、交換を押した本人だけに送られる(view の myOld)
   function stageHtml(face, el){
     var d = function(t){ return (t - el).toFixed(2) + 's'; };
-    var oldC = face && TILT.prev ? cardHtml(TILT.prev) : cardHtml(null);
-    if(face && TILT.prev) oldC = cardHtml(TILT.prev);
+    var oldInner = TILT.prev
+      ? '<div class="ipfi' + (face ? ' f' : '') + '" style="' + (face ? '' : 'animation:ipPeel .8s cubic-bezier(.3,.7,.3,1) ' + d(0.15) + ' both') + '">' + cardHtml(null) + cardHtml(TILT.prev, 'fr') + '</div>'
+      : cardHtml(null).replace('class="ipc', 'class="ipc fillc');
     return '<div class="ipf">' +
-      '<div style="position:absolute;inset:0;animation:ipOut .55s ease-in ' + d(0) + ' both">' + oldC.replace('class="ipc', 'class="ipc fillc') + '</div>' +
-      '<div style="position:absolute;inset:0;animation:ipIn .62s cubic-bezier(.2,.9,.3,1) ' + d(0.4) + ' both"><div class="ipfi' + '" style="' + (face ? 'animation:ipPeel .75s cubic-bezier(.3,.7,.3,1) ' + d(1.15) + ' both' : '') + '">' +
+      '<div style="position:absolute;inset:0;animation:ipOut .55s ease-in ' + d(1.95) + ' both">' + oldInner + '</div>' +
+      '<div style="position:absolute;inset:0;animation:ipIn .62s cubic-bezier(.2,.9,.3,1) ' + d(2.35) + ' both"><div class="ipfi" style="' + (face ? 'animation:ipPeel .75s cubic-bezier(.3,.7,.3,1) ' + d(3.55) + ' both' : '') + '">' +
         cardHtml(null) + cardHtml(TILT.card, 'fr') + '</div></div>' +
-      '<div class="ipglow" style="animation:ipGlow .9s ease-out ' + d(0.95) + ' both"></div>' +
-      '<div class="ipswb" style="animation:ipBan 1.25s ease-out ' + d(0.8) + ' both">🔁 交換!</div>' +
-      ribbon('ipRib .4s ease-out ' + d(1.3) + ' both') + '</div>';
+      '<div class="ipglow" style="animation:ipGlow .9s ease-out ' + d(2.95) + ' both"></div>' +
+      '<div class="ipswb" style="animation:ipBan 1.25s ease-out ' + d(2.75) + ' both">🔁 交換!</div>' +
+      ribbon('ipRib .4s ease-out ' + d(3.6) + ' both') + '</div>';
   }
   function paintSlot(){
     var slot = document.getElementById('ipSlot'); if(!slot || !TILT.card) return;
@@ -289,7 +292,7 @@
       }
     }
     var sb = document.getElementById('sSwap');         // 交換ボタンは、机に置いている間だけ
-    if(sb) sb.style.display = ((TILT.mode === 'sensor' && !TILT.up) || (TILT.mode === 'manual' && !TILT.manual)) ? '' : 'none';
+    if(sb) sb.style.display = ((TILT.mode === 'sensor' && !TILT.up) || (TILT.mode === 'manual' && !TILT.manual)) ? 'block' : 'none';
     syncDown();
     var mb = document.getElementById('ipManual');
     if(mb){
@@ -437,9 +440,10 @@
       if(first){ Ls.wasSw = nowSw; Ls.swSet = v.swapped.slice(); TILT.swAt = 0; TILT.prev = null; TILT.swapped = nowSw; }
       else {
         if(nowSw && !Ls.wasSw){        // 自分が交換した
-          TILT.prev = TILT.card; TILT.swFace = showFace(); TILT.swAt = Date.now(); TILT.swapped = true;
-          ctx.tone(300, 0.1, 'sawtooth', 0.1); [520, 700, 940].forEach(function(f, i){ setTimeout(function(){ ctx.tone(f, 0.14, 'triangle', 0.12); }, 450 + i * 110); });
-          var sf2 = ctx.sfx && ctx.sfx(); if(sf2) whoosh(sf2);
+          TILT.prev = v.myOld || null; TILT.swFace = showFace(); TILT.swAt = Date.now(); TILT.swapped = true;
+          ctx.tone(300, 0.1, 'sawtooth', 0.1); setTimeout(function(){ ctx.tone(880, 0.12, 'triangle', 0.12); }, 450);          // めくれる
+          setTimeout(function(){ var sf2 = ctx.sfx && ctx.sfx(); if(sf2) whoosh(sf2); }, 1950);
+          [520, 700, 940].forEach(function(f, i){ setTimeout(function(){ ctx.tone(f, 0.14, 'triangle', 0.12); }, 2750 + i * 110); });
           if(navigator.vibrate) try{ navigator.vibrate([40, 60, 40, 60, 80]); }catch(e){}
         }
         v.swapped.forEach(function(id){          // 他の人が交換したら知らせる
@@ -449,7 +453,7 @@
       }
       TILT.card = v.myCard; TILT.canSend = false; startTilt();
       var confirming = Ls.confirmAt && Date.now() - Ls.confirmAt < 3500;
-      var swapBtn = v.mySwapped ? '' : '<button class="' + (confirming ? 'btn-danger' : 'btn-ghost') + '" id="sSwap" style="display:none">' + (confirming ? 'もう一度で交換' : '🔁 交換(1回だけ)') + '</button>';
+      var swapBtn = v.mySwapped ? '' : '<button class="' + (confirming ? 'btn-danger' : 'btn-primary') + '" id="sSwap" style="display:none;width:100%;border-radius:14px;padding:15px;min-height:64px;font-size:20px;font-weight:900;margin-bottom:8px">' + (confirming ? '🔁 もう一度押すと交換' : '🔁 カードを交換(1回だけ)') + '</button>';
       var endBtn = ctx.isHost && v.allDown ? btn('sResult', '答え合わせ') : '';
       root.innerHTML = '<div class="ipflash" id="ipFlash"></div>' +
         '<div class="ipw shw" id="ipSlot"></div><div id="ipManual"></div>' +
