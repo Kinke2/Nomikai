@@ -70,7 +70,7 @@
   }
 
   /* ---- bomb screen ---- */
-  .stage-row{display:flex;justify-content:space-between;align-items:baseline;margin-top:4px;}
+  .stage-row{display:flex;justify-content:space-between;align-items:baseline;margin-top:34px;}
   .stage-label{
     font-size:12.5px;font-weight:700;letter-spacing:.04em;
     color:var(--stage-color);
@@ -118,6 +118,22 @@
     80%{ transform:translate(var(--shake-amp), calc(var(--shake-amp) * -.7)) rotate(.7deg); }
   }
   .bomb-wrap.exploding{ animation:none; }
+  .bomb-svg.pop{ animation:pop .22s ease-out; }
+  @keyframes pop{ 0%{transform:scale(1);} 35%{transform:scale(.88);} 100%{transform:scale(1);} }
+  .tap-count b.bump{ animation:bump .22s ease-out; display:inline-block; }
+  @keyframes bump{ 0%{transform:scale(1);} 40%{transform:scale(1.5);color:var(--stage-color);} 100%{transform:scale(1);} }
+  .ripple{
+    position:fixed; z-index:30; pointer-events:none; width:30px; height:30px; margin:-15px 0 0 -15px;
+    border-radius:50%; border:3px solid var(--stage-color); background:rgba(255,255,255,.12);
+    animation:rip .5s ease-out forwards;
+  }
+  @keyframes rip{ 0%{transform:scale(.3);opacity:.95;} 100%{transform:scale(3.6);opacity:0;} }
+  .edge-flash{
+    position:fixed; inset:0; z-index:29; pointer-events:none; opacity:0;
+    box-shadow:inset 0 0 70px 6px var(--stage-color);
+  }
+  .edge-flash.on{ animation:edge .22s ease-out; }
+  @keyframes edge{ 0%{opacity:.8;} 100%{opacity:0;} }
   .bomb-svg{ width:200px;height:200px;position:relative;z-index:2;transition:transform .25s ease, opacity .25s ease;}
   .bomb-wrap.exploding .bomb-svg{ transform:scale(1.35); opacity:0; }
 
@@ -232,7 +248,7 @@
       </div>
     </div>
 
-    <div class="tap-hint" id="tapHint">爆弾をタップして、次の人へ渡してください</div>
+    <div class="tap-hint" id="tapHint">画面のどこをタップしてもOK。タップしたら次の人へ渡してください</div>
   </div>
 
   <!-- RESULT -->
@@ -270,6 +286,7 @@
 </div>
 
 <div class="flash" id="flash"></div>
+<div class="edge-flash" id="edgeFlash"></div>
 
 <div class="bottombar">
   <button class="btn-primary" id="mainBtn">はじめる</button>
@@ -389,8 +406,22 @@
     el('shardBurst').innerHTML = '';
   }
 
-  function onTap(){
+  function tapFeedback(x, y){
+    var rp = document.createElement('div');
+    rp.className = 'ripple'; rp.style.left = x+'px'; rp.style.top = y+'px';
+    document.body.appendChild(rp);
+    setTimeout(function(){ rp.remove(); }, 560);
+    var svg = document.querySelector('.bomb-svg');
+    svg.classList.remove('pop'); void svg.getBoundingClientRect(); svg.classList.add('pop');
+    var b = el('tapCountText');
+    b.classList.remove('bump'); void b.getBoundingClientRect(); b.classList.add('bump');
+    var ef = el('edgeFlash');
+    ef.classList.remove('on'); void ef.getBoundingClientRect(); ef.classList.add('on');
+  }
+
+  function onTap(x, y){
     if(state.exploded) return;
+    tapFeedback(x, y);
     state.tapCount++;
     var stageIdx = STAGES.indexOf(stageFor(state.tapCount));
     var stage = STAGES[stageIdx];
@@ -403,7 +434,13 @@
       explode();
     }
   }
-  el('bombWrap').addEventListener('click', onTap);
+  // 画面のどこをタップしても1回(音ボタンは除く)。pointerdown で即時に反応
+  document.addEventListener('pointerdown', function(e){
+    if(!el('screen-bomb').classList.contains('active')) return;
+    if(e.target.closest && e.target.closest('#muteBtn')) return;
+    if(e.pointerType === 'mouse' && e.button !== 0) return;
+    onTap(e.clientX, e.clientY);
+  });
 
   function explode(){
     state.exploded = true;

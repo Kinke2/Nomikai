@@ -86,6 +86,9 @@
     font-size:64px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:.02em;
     line-height:1.1;margin-top:2px;
   }
+  .timer{display:grid;justify-items:center;}
+  .timer > span{grid-area:1/1;}
+  .timer .tq{opacity:0;}
   .timer.hidden{color:var(--text-muted);}
   .timer.count{color:var(--accent);}
   .msg{font-size:13.5px;color:var(--text-muted);min-height:20px;margin-top:2px;}
@@ -191,8 +194,8 @@
 
     <div class="rule-card">
       <div class="rule-row"><div class="rule-num">1</div><div class="rule-text">スマホを囲んで、全員が自分のパッドに指を置く</div></div>
-      <div class="rule-row"><div class="rule-num">2</div><div class="rule-text">目標は10〜20秒のどれか(毎回ランダム)。最初の5秒だけ経過時間が見える</div></div>
-      <div class="rule-row"><div class="rule-num">3</div><div class="rule-text">5秒を過ぎたら時間は消える。目標だと思う瞬間に指を離す</div></div>
+      <div class="rule-row"><div class="rule-num">2</div><div class="rule-text">目標は10〜20秒のどれか(毎回ランダム)。最初の5秒は経過時間が見える</div></div>
+      <div class="rule-row"><div class="rule-num">3</div><div class="rule-text">5秒から3秒かけて数字が徐々に「?」に変わり、8秒以降は完全に消える。目標だと思う瞬間に指を離す</div></div>
       <div class="rule-row"><div class="rule-num">4</div><div class="rule-text">いちばん近い人が勝ち、いちばん遠い人が飲む</div></div>
     </div>
     <div class="notice">※ 3本指スワイプなどの端末の操作が起きると、指が離れた扱いになることがあります。</div>
@@ -231,7 +234,8 @@
 (function(){
   'use strict';
 
-  var HIDE_MS  = 5000;    // 最初の5秒だけ経過時間を表示
+  var HIDE_MS  = 5000;    // 5秒までは経過時間をはっきり表示
+  var FADE_MS  = 3000;    // 5秒から3秒かけて、数字が徐々に「?.??」へ変わる(経過時間は線形に薄くなるだけ。8秒以降は完全に非表示。最短の目標は10秒)
   var LIMIT_MS = 60000;   // 離さない人がいても止まらないための上限(目標の最大20秒の3倍)
   var MIN_T = 10, MAX_T = 20;
   var COLORS = ['#E8C24A','#5FB4E8','#F2A65A','#5FD0A8','#F17FB1','#8B8FF0'];
@@ -353,7 +357,17 @@
   }
   function setMsg(t){ $('msg').textContent = t || ''; }
   function setTimer(text, cls){
-    var t = $('timer'); t.textContent = text; t.className = 'timer' + (cls ? ' ' + cls : '');
+    var t = $('timer'); t.className = 'timer' + (cls ? ' ' + cls : '');
+    t.innerHTML = '<span class="tn"></span><span class="tq"></span>';
+    t.firstChild.textContent = text;
+  }
+  // 数字→「?.??」へのクロスフェード。p: 0(数字のみ)〜1(?のみ)。時間の関数として線形に変えるだけ
+  function setFade(text, p){
+    var t = $('timer'); if(!t.firstChild || !t.firstChild.className) return;
+    t.className = 'timer';
+    t.firstChild.textContent = text; t.firstChild.style.opacity = String(1 - p);
+    t.lastChild.textContent = '?.??'; t.lastChild.style.opacity = String(p);
+    t.style.color = 'var(--text-muted)';
   }
   function clearTimers(){
     G.tids.forEach(function(id){ clearTimeout(id); });
@@ -431,7 +445,7 @@
 
   function startRun(){
     G.phase = 'run';
-    G.hidden = false;
+    G.hidden = false; G.fading = false;
     G.startT = performance.now();
     setTimer('0.00');
     setMsg('目標の瞬間に指を離せ');
@@ -439,18 +453,23 @@
     paintAll();
     G.raf = requestAnimationFrame(loop);
     [1,2,3,4].forEach(function(s){ later(sfxTick, s*1000); });   // 見えている間だけ秒の合図
-    later(hideTimer, HIDE_MS);
+    later(hideTimer, HIDE_MS + FADE_MS);
     later(timeoutAll, LIMIT_MS);
   }
 
   function loop(){
     if(G.phase !== 'run') return;
     var el = performance.now() - G.startT;
-    if(el >= HIDE_MS){ hideTimer(); }
-    else { setTimer((el/1000).toFixed(2)); G.raf = requestAnimationFrame(loop); }
+    if(el >= HIDE_MS + FADE_MS){ hideTimer(); return; }
+    if(el < HIDE_MS){ setTimer((el/1000).toFixed(2)); }
+    else {
+      if(!G.fading){ G.fading = true; setMsg('だんだん見えなくなる…'); }
+      setFade((el/1000).toFixed(2), (el - HIDE_MS) / FADE_MS);
+    }
+    G.raf = requestAnimationFrame(loop);
   }
 
-  // 5秒を過ぎたら表示を消す。以降は時間と相関する音・動きを一切出さない(静止した表示のみ)
+  // フェード完了後は完全に非表示。以降は時間と相関する音・動きを一切出さない(静止した表示のみ)
   function hideTimer(){
     if(G.phase !== 'run' || G.hidden) return;
     G.hidden = true;
