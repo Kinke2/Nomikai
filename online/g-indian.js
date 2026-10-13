@@ -227,8 +227,25 @@
     '.ipcount b{position:absolute;font-size:min(46vw,30vh);font-weight:900;color:#fff;text-shadow:0 0 30px rgba(255,200,90,.9),0 6px 18px rgba(0,0,0,.7);opacity:0;}',
     '.ipflash{position:fixed;inset:0;z-index:50;pointer-events:none;background:radial-gradient(circle,#fff,rgba(255,236,170,.6) 50%,rgba(0,0,0,0) 80%);opacity:0;}',
     '.ipmsg{text-align:center;font-weight:900;font-size:15px;line-height:1.6;color:#ffd98a;margin:2px 0 6px;}',
+    '.hold{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation;}',
     '.ipsm{font-size:12px;color:var(--text-muted);text-align:center;line-height:1.7;}'
   ].join('\n');
+  // 誤タップ防止: 2秒間押し続けたときだけ実行する(途中で指を離したら取り消し)。押している間は左から塗りつぶしで進み具合を見せる
+  function holdBtn(el, ms, done){
+    var t0 = 0, raf = 0;
+    function paint(p){ el.style.backgroundImage = p > 0 ? 'linear-gradient(90deg,rgba(255,255,255,.45) ' + (p * 100).toFixed(1) + '%,rgba(255,255,255,0) ' + (p * 100).toFixed(1) + '%)' : ''; }
+    function stop(){ t0 = 0; cancelAnimationFrame(raf); paint(0); }
+    function tick(){
+      if(!t0) return;
+      var p = (Date.now() - t0) / ms;
+      if(p >= 1){ stop(); if(navigator.vibrate) try{ navigator.vibrate(60); }catch(e){} done(); return; }
+      paint(p); raf = requestAnimationFrame(tick);
+    }
+    el.addEventListener('pointerdown', function(e){ if(e.button) return; t0 = Date.now(); tick(); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(function(n){ el.addEventListener(n, stop); });
+    el.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+    el.addEventListener('click', function(e){ e.preventDefault(); });
+  }
   function injectCss(){
     if(document.getElementById(CSS_ID)) return;
     var st = document.createElement('style'); st.id = CSS_ID; st.textContent = CSS; document.head.appendChild(st);
@@ -452,9 +469,8 @@
         Ls.wasSw = nowSw; Ls.swSet = v.swapped.slice();
       }
       TILT.card = v.myCard; TILT.canSend = false; startTilt();
-      var confirming = Ls.confirmAt && Date.now() - Ls.confirmAt < 3500;
-      var swapBtn = v.mySwapped ? '' : '<button class="' + (confirming ? 'btn-danger' : 'btn-primary') + '" id="sSwap" style="display:none;width:100%;border-radius:14px;padding:15px;min-height:64px;font-size:20px;font-weight:900;margin-bottom:8px">' + (confirming ? '🔁 もう一度押すと交換' : '🔁 カードを交換(1回だけ)') + '</button>';
-      var endBtn = ctx.isHost && v.allDown ? btn('sResult', '答え合わせ') : '';
+      var swapBtn = v.mySwapped ? '' : '<button class="btn-primary hold" id="sSwap" style="display:none;width:100%;border-radius:14px;padding:15px;min-height:64px;font-size:20px;font-weight:900;margin-bottom:8px">' + '🔁 カードを交換(2秒長押し)' + '</button>';
+      var endBtn = ctx.isHost && v.allDown ? btn('sResult', '答え合わせ(2秒長押し)').replace('class="', 'class="hold ') : '';
       root.innerHTML = '<div class="ipflash" id="ipFlash"></div>' +
         '<div class="ipw shw" id="ipSlot"></div><div id="ipManual"></div>' +
         '<div class="bottombar">' + swapBtn + endBtn + '</div>';
@@ -470,11 +486,8 @@
         // 1.5秒たってもセンサーの値が来なければ、手動の切り替えボタンを出す(PCや、許可しなかった端末向け)
         setTimeout(function(){ if(TILT.mode === 'wait'){ TILT.mode = 'manual'; paintSlot(); } }, 1500);
       }
-      if(q('sSwap')) q('sSwap').onclick = function(){
-        if(Ls.confirmAt && Date.now() - Ls.confirmAt < 3500){ Ls.confirmAt = 0; ctx.send({ t: 'swap' }); ctx.tone(440, 0.12, 'sawtooth', 0.1); }
-        else { Ls.confirmAt = Date.now(); render(root, ctx); }
-      };
-      if(q('sResult')) q('sResult').onclick = function(){ ctx.send({ t: 'result' }); };
+      if(q('sSwap')) holdBtn(q('sSwap'), 2000, function(){ ctx.send({ t: 'swap' }); });
+      if(q('sResult')) holdBtn(q('sResult'), 2000, function(){ ctx.send({ t: 'result' }); });
       return;
     }
 
@@ -513,7 +526,7 @@
       '各自「準備OK」を押して、スマホを立てて<b>額(頭の上)に当てる</b>。<b>全員が当てたことをセンサーで検知</b>すると、<b>3秒のカウントダウン</b>のあとにカードが表になる(途中で誰かが下ろしたらやり直し)。自分は画面を見ない!',
       '見えるのは<b>他の人のカードだけ</b>。みんなのカードを見て、自分のカードが勝てそうか読み合う。勝負するか降りるか、飲むのは誰かは<b>みんなで決める</b>(アプリは判定しない)。',
       '<b>スマホが寝ている(画面が上向き)間は裏向き</b>。スマホを立てて額にかざすと表になる(iPhoneはセンサーの許可が必要)。',
-      '各自<b>1回だけカードを交換</b>できる(山札の次のカードと入れ替え。どちらも自分には見えない)。交換した人は全員に表示される。',
+      '各自<b>1回だけカードを交換</b>できる(誤タップ防止のため<b>2秒長押し</b>。山札の次のカードと入れ替え。どちらも自分には見えない)。交換した人は全員に表示される。',
       '最後に<b>答え合わせ</b>で全員のカードと強さ順を公開。強さは 2 &lt; … &lt; K &lt; A(Aを最弱にもできる)、ジョーカーありなら最強。'
     ],
     game: game, bot: bot, render: render
