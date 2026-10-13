@@ -70,12 +70,13 @@ https://kinke2.github.io/Nomikai/
 ## オンライン版(開発中)
 
 `online/` 以下は、各自のスマホで遊ぶオンライン版(開発中)です。安定版(`games/`)とは完全に別で、安定版のファイルは変更していません。
-メニュー(index.html)の下段に「オンライン版(開発中)」として並びます(`games.js` の `window.ONLINE_GAMES`)。
+メニュー(index.html)の下段に「オンライン ロビー」として並びます(`games.js` の `window.ONLINE_GAMES`)。
 
-- 遊び方: ホストが部屋をつくるとQRコードと部屋コードが出る → 参加者がQRを読み取る(またはコードを入力) → ホストが開始。
+- 遊び方: ホストが「オンライン ロビー」で部屋をつくる → QRコードが出る → みんなが**1度だけ**QRを読み取って参加 →
+  ロビーでホストがゲームを選ぶ → ルール確認 → 開始。ゲームが終わったら「⋯」メニューの「ロビーに戻る」で、同じ部屋のまま別のゲームを選べる。
 - 通信: WebRTC(PeerJS)。ホスト端末がゲームの状態を持ち、各端末にはその人に見せてよい情報だけを送る。
 - 必要なもの: 外部スクリプトを2つ読み込む(PeerJS: unpkg、QR生成: jsDelivr)。インターネット接続が必要。
 - 注意: 会場の回線によっては端末同士がつながらないことがある。ホストの画面には全員分の通信が処理されるので身内用の想定。
-- ゲーム: `wolf.html`(ワードウルフ) / `lupi.html`(最小ユニーク) / `shimei.html`(秘密指名ゲーム) / `kankaku.html`(感覚ならべ オンライン版)
-- 共通部分: `online-core.js`(部屋・通信・QR・並べ替えUI)。新しいオンラインゲームは `NomikaiOnline.start({...})` に
-  `game`(newState/act/view/waiting/force)と `render` を渡すだけで作れる。
+- ゲーム: `g-wolf.js`(ワードウルフ) / `g-lupi.js`(最小ユニーク) / `g-shimei.js`(秘密指名ゲーム) / `g-kankaku.js`(感覚ならべ) / `g-gaman.js`(我慢くらべ入札) / `g-onenight.js`(ワンナイト人狼)
+- 共通部分: `online-core.js`(部屋・通信・QR・並べ替えUI)。新しいゲームは `g-xxx.js` を作って `NomikaiOnline.register({...})` を呼び、
+  `online/index.html` に `<script>` を1行足すだけ。

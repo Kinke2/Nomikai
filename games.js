@@ -121,35 +121,11 @@ window.GAMES = [
 // ------------------------------------------------------------
 window.ONLINE_GAMES = [
   {
-    id: 'online-wolf',
-    title: 'ワードウルフ',
-    tagline: '1人だけ違うワードのウルフを探し出せ。各自のスマホにワードが届く。',
-    emoji: '🐺',
-    accent: '#C792EA',
-    file: 'online/wolf.html'
-  },
-  {
-    id: 'online-lupi',
-    title: '最小ユニーク',
-    tagline: '誰とも被らない、いちばん小さい数字を選んだ人が勝ち。被った人は飲む。',
-    emoji: '🔢',
-    accent: '#E8C24A',
-    file: 'online/lupi.html'
-  },
-  {
-    id: 'online-shimei',
-    title: '秘密指名ゲーム',
-    tagline: 'お題に当てはまる人をこっそり指名。最多得票の人が飲む。誰が入れたかは内緒。',
-    emoji: '🫵',
-    accent: '#FF8A5B',
-    file: 'online/shimei.html'
-  },
-  {
-    id: 'online-kankaku',
-    title: '感覚ならべ(オンライン)',
-    tagline: '各自のスマホに秘密の数字。ひとことで伝えて、みんなで小さい順に並べる。',
-    emoji: '📏',
-    accent: '#F17FB1',
-    file: 'online/kankaku.html'
+    id: 'online-lobby',
+    title: 'オンライン ロビー',
+    tagline: 'QRで1度参加すれば、ワードウルフ・最小ユニーク・秘密指名ゲーム・感覚ならべ・我慢くらべ入札・ワンナイト人狼を選んで遊べる。',
+    emoji: '📱',
+    accent: '#4FC3D9',
+    file: 'online/index.html'
   }
 ];
