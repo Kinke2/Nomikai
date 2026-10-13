@@ -7,7 +7,8 @@
   公平性: アプリは回数をそのまま集計し、「いちばん先に目標回数に達した人」を勝者にするだけ(補正・加工・ハンデは一切なし)。
           勝者は、ホストに「目標回数に達した」という知らせが届いた順(先着)で決まる。回線の遅れの差は補正していない(ホスト自身の遅れがゼロな分、わずかに有利)。
           回数は各自の端末が数えて申告する方式のため、改造すればごまかせる(飲み会で遊ぶ前提。研究データには使わないこと)。
-          乱数は使わない。開発中モードのCPUだけが、見えている進み具合を元にランダムな回数ぶん進める(動作確認専用)。
+          決着の演出(花火・ビールの泡)の見た目だけ Math.random を使う。勝敗・回数・順位には一切関係しない。
+          乱数は勝敗には使わない。開発中モードのCPUだけが、見えている進み具合を元にランダムな回数ぶん進める(動作確認専用)。
   参考文献:
     [1] Button mashing(連打ゲームの一般的な形): https://en.wikipedia.org/wiki/Button_mashing
     [2] MDN Pointer events(指・マウス共通の入力イベント): https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events
@@ -105,6 +106,19 @@
     '@keyframes kNum{0%{transform:scale(2.2);opacity:0;}30%{transform:scale(1);opacity:1;}85%{transform:scale(.95);opacity:1;}100%{transform:scale(.6);opacity:0;}}',
     '.kgo{position:absolute;left:0;right:0;top:18%;text-align:center;font-weight:900;font-size:min(16vw,64px);color:#ffd98a;pointer-events:none;text-shadow:0 4px 18px rgba(0,0,0,.8);opacity:0;animation:kGo .9s ease-out both;}',
     '@keyframes kGo{0%{transform:scale(.4);opacity:0;}25%{transform:scale(1.15);opacity:1;}100%{transform:scale(1);opacity:0;}}',
+    '.kfx{position:fixed;inset:0;z-index:70;pointer-events:none;overflow:hidden;animation:kFxOut .5s ease-in 3.6s both;}',
+    '@keyframes kFxOut{to{opacity:0;}}',
+    '.kfx .sp{position:absolute;width:7px;height:7px;border-radius:50%;opacity:0;animation:kSpark 1.1s ease-out both;}',
+    '@keyframes kSpark{0%{opacity:1;transform:translate(0,0) scale(1);}70%{opacity:1;}100%{opacity:0;transform:translate(var(--dx),calc(var(--dy) + 40px)) scale(.3);}}',
+    '.kfx .cf{position:absolute;top:-4vh;width:9px;height:14px;opacity:0;animation:kFall 2.6s linear both;}',
+    '@keyframes kFall{0%{opacity:1;transform:translateY(0) rotate(0);}100%{opacity:1;transform:translateY(112vh) rotate(var(--rot));}}',
+    '.kfx .crown{position:absolute;left:0;right:0;top:34%;text-align:center;font-size:min(34vw,140px);animation:kPop .6s cubic-bezier(.2,1.4,.4,1) both;}',
+    '.kfx .foam{position:absolute;border-radius:50%;opacity:0;animation:kPop .28s ease-out both,kSlide 3s ease-in .4s both;background:radial-gradient(circle at 35% 30%,#fff 0 16%,#fffaf0 38%,#f6e2ae 78%,#e8c36a 100%);box-shadow:0 6px 16px rgba(120,70,0,.35),inset -6px -8px 14px rgba(214,160,60,.45);}',
+    '.kfx .foam i{position:absolute;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff 0 20%,#fff7e0 60%,#efd48e 100%);box-shadow:0 2px 6px rgba(120,70,0,.3);}',
+    '@keyframes kPop{0%{opacity:0;transform:scale(.2);}60%{opacity:1;transform:scale(1.15);}100%{opacity:1;transform:scale(1);}}',
+    '@keyframes kSlide{0%{opacity:1;transform:translateY(0) scale(1);}60%{opacity:.95;}100%{opacity:0;transform:translateY(34vh) scale(1.05);}}',
+    '.kfx .bub{position:absolute;bottom:-20px;border-radius:50%;border:2px solid rgba(255,244,214,.85);background:rgba(255,248,225,.35);animation:kRise 2.4s ease-in both;}',
+    '@keyframes kRise{0%{opacity:0;transform:translateY(0);}15%{opacity:1;}100%{opacity:0;transform:translateY(-70vh);}}',
     '.krow{display:flex;align-items:center;gap:10px;background:var(--bg-surface);border:1.5px solid var(--line);border-radius:14px;padding:10px 12px;margin-top:8px;}'
   ].join('\n');
   function injectCss(){
@@ -112,6 +126,35 @@
     var st = document.createElement('style'); st.id = CSS_ID; st.textContent = CSS; document.head.appendChild(st);
   }
 
+  // 決着の演出(全員の画面に約4秒)。勝者: 花火と紙吹雪と👑 / それ以外: 画面にビールの泡が飛び散る。見た目だけの乱数(Math.random)で、勝敗には無関係
+  function rnd1(a, b){ return a + Math.random() * (b - a); }
+  function endFx(win){
+    var old = document.getElementById('kfx'); if(old) old.remove();
+    var d = document.createElement('div'); d.id = 'kfx'; d.className = 'kfx'; var h = '';
+    if(win){
+      var cols = ['#ffd24a', '#ff8a3d', '#ffffff', '#ff5e8a', '#6be3ff', '#9dff7a'];
+      for(var b = 0; b < 7; b++){
+        var cx = rnd1(15, 85), cy = rnd1(14, 48), dl = (b * 0.32).toFixed(2), col = cols[b % cols.length];
+        for(var k = 0; k < 26; k++){
+          var a = k / 26 * Math.PI * 2, r = rnd1(60, 130);
+          h += '<span class="sp" style="left:' + cx + '%;top:' + cy + '%;background:' + col + ';--dx:' + (Math.cos(a) * r).toFixed(0) + 'px;--dy:' + (Math.sin(a) * r).toFixed(0) + 'px;animation-delay:' + dl + 's"></span>';
+        }
+      }
+      for(var c = 0; c < 46; c++){
+        h += '<span class="cf" style="left:' + rnd1(0, 100).toFixed(1) + '%;background:' + cols[c % cols.length] + ';--rot:' + rnd1(-720, 720).toFixed(0) + 'deg;animation-delay:' + rnd1(0, 1.6).toFixed(2) + 's;animation-duration:' + rnd1(2, 3).toFixed(2) + 's"></span>';
+      }
+      h += '<div class="crown">👑</div>';
+    } else {
+      for(var f = 0; f < 11; f++){
+        var sz = rnd1(90, 210), kids = '';
+        for(var j = 0; j < 5; j++){ var ks = sz * rnd1(.22, .4); kids += '<i style="width:' + ks.toFixed(0) + 'px;height:' + ks.toFixed(0) + 'px;left:' + rnd1(5, 65).toFixed(0) + '%;top:' + rnd1(5, 65).toFixed(0) + '%"></i>'; }
+        h += '<div class="foam" style="width:' + sz.toFixed(0) + 'px;height:' + sz.toFixed(0) + 'px;left:calc(' + rnd1(0, 100).toFixed(1) + '% - ' + (sz / 2).toFixed(0) + 'px);top:calc(' + rnd1(4, 84).toFixed(1) + '% - ' + (sz / 2).toFixed(0) + 'px);animation-delay:' + (f * 0.11).toFixed(2) + 's,' + (0.4 + f * 0.11).toFixed(2) + 's">' + kids + '</div>';
+      }
+      for(var u = 0; u < 22; u++){ var bs = rnd1(8, 26); h += '<span class="bub" style="left:' + rnd1(0, 100).toFixed(1) + '%;width:' + bs.toFixed(0) + 'px;height:' + bs.toFixed(0) + 'px;animation-delay:' + rnd1(0, 1.6).toFixed(2) + 's"></span>'; }
+    }
+    d.innerHTML = h; document.body.appendChild(d);
+    setTimeout(function(){ if(d.parentNode) d.remove(); }, 4300);
+  }
   function render(root, ctx){
     injectCss();
     var v = ctx.view, esc = ctx.esc, me = ctx.me, L = ctx.local;
@@ -220,8 +263,20 @@
     var rkey = 'res:' + v.round;
     if(L.rkey2 !== rkey){
       L.rkey2 = rkey;
-      if(v.winner === me){ [660, 880, 1175, 1568].forEach(function(f, i){ setTimeout(function(){ ctx.tone(f, 0.16, 'triangle', 0.14); }, i * 110); }); if(navigator.vibrate) try{ navigator.vibrate([60, 40, 60, 40, 120]); }catch(e){} }
-      else ctx.tone(180, 0.3, 'sawtooth', 0.1);
+      var won = v.winner === me;
+      endFx(won);
+      var sf = ctx.sfx && ctx.sfx();
+      if(won){
+        [660, 880, 1175, 1568, 1319, 1760].forEach(function(f, i){ setTimeout(function(){ ctx.tone(f, 0.16, 'triangle', 0.14); }, i * 140); });
+        if(navigator.vibrate) try{ navigator.vibrate([60, 40, 60, 40, 160]); }catch(e){}
+      } else {
+        ctx.tone(150, 0.35, 'sawtooth', 0.1);
+        if(sf){ var ac = sf.ac, n = Math.floor(ac.sampleRate * 0.5), buf = ac.createBuffer(1, n, ac.sampleRate), dd = buf.getChannelData(0);
+          for(var i2 = 0; i2 < n; i2++) dd[i2] = (Math.random() * 2 - 1) * Math.pow(1 - i2 / n, 2);
+          var src = ac.createBufferSource(); src.buffer = buf; var lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1800;
+          var g = ac.createGain(); g.gain.value = 0.6; src.connect(lp); lp.connect(g); g.connect(sf.out); src.start(ac.currentTime + 0.02); }       // ベチャッ
+        if(navigator.vibrate) try{ navigator.vibrate([80, 40, 120]); }catch(e){}
+      }
     }
   }
 
