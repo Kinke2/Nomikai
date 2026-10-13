@@ -8,7 +8,14 @@
   公平性: 山札は 52枚(+ジョーカー)を crypto.getRandomValues の棄却サンプリング(randInt)+ Fisher–Yates でシャッフルして
           先頭から1人1枚ずつ配るだけ。同じラウンドで同じカードが重なることはない。配り方・強さの扱いにアプリ側の補正は一切ない。
           カードの強さは 2 < 3 < … < 10 < J < Q < K < A < ジョーカー(Aを弱くする設定も選べる)。同じ強さは「同点」と表示する。
+  スマホの傾き: 画面が上を向いている(寝かせている)間は裏向きを表示。スマホを立てて額にかざすと表向きになる。
+          加速度センサー(DeviceMotion の重力方向。画面の法線が水平に近いほど「立っている」)で判定する。傾き判定には余裕(ヒステリシス)を持たせている。
+          iPhone はセンサーの許可が必要で、「準備OK」や「カウントダウン開始」を押したときに許可を求める。センサーが使えない端末では、手動で表示/裏向きを切り替えるボタンが出る。
+  カード交換: 各自1ラウンドに1回だけ、自分のカードを山札の次のカードと交換できる(交換前のカードは捨て札。どちらのカードも自分には見えない)。
+          交換した人は全員の画面に表示される。答え合わせでは「交換前→交換後」も公開する。
   注意: 自分のカードは自分の画面に出る。画面を見ないで額にかざすのは、遊ぶ人同士のルール(アプリでは強制できない)。
+          スマホを立てて自分の顔の前で眺めれば見えてしまう(センサーは「立っているか」しか分からない)。
+    [5] MDN DeviceMotionEvent(加速度センサー): https://developer.mozilla.org/en-US/docs/Web/API/DeviceMotionEvent
   参考文献:
     [1] Blind man's bluff(Indian poker): https://en.wikipedia.org/wiki/Blind_man%27s_bluff_(poker)
     [2] Fisher–Yates shuffle(偏りのないシャッフル): https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
@@ -43,7 +50,7 @@
   }
 
   function newState(players, rnd){
-    var G = { players: players, offline: {}, phase: 'setup', joker: false, aceHigh: true, round: 0, part: [], cards: {}, ready: {} };
+    var G = { players: players, offline: {}, phase: 'setup', joker: false, aceHigh: true, round: 0, part: [], cards: {}, ready: {}, deck: [], dpos: 0, swapped: {}, old: {} };
     syncSetup(G);
     return G;
   }
@@ -51,8 +58,9 @@
   function deal(G, rnd){
     syncSetup(G);
     var deck = makeDeck(G.joker, rnd);
-    G.cards = {}; G.ready = {};
+    G.cards = {}; G.ready = {}; G.swapped = {}; G.old = {};
     G.part.forEach(function(id, i){ G.cards[id] = deck[i]; });      // 先頭から1人1枚(重複なし)
+    G.deck = deck; G.dpos = G.part.length;                          // 残りの山札(交換用。host の内部だけが持つ)
     G.round++; G.phase = 'ready';
   }
   function act(G, pid, a, rnd){
@@ -78,6 +86,12 @@
       case 'countDone':
         if(!host || G.phase !== 'count') return { error: '今は進められません' };
         G.phase = 'show'; return { ok: true };
+      case 'swap':
+        if(G.phase !== 'show' || !inPart(G, pid)) return { error: '今は交換できません' };
+        if(G.swapped[pid]) return { error: '交換は1回だけです' };
+        if(G.dpos >= G.deck.length) return { error: '山札がありません' };
+        G.old[pid] = G.cards[pid]; G.cards[pid] = G.deck[G.dpos++]; G.swapped[pid] = true;      // 交換前は捨て札。山札の次の1枚と交換
+        return { ok: true };
       case 'result':
         if(!host || G.phase !== 'show') return { error: '今は進められません' };
         G.phase = 'result'; return { ok: true };
@@ -101,11 +115,11 @@
   function view(G, pid){
     var v = { phase: G.phase, round: G.round, part: G.part, inPart: inPart(G, pid), joker: G.joker, aceHigh: G.aceHigh };
     if(G.phase === 'ready'){ v.myReady = !!G.ready[pid]; v.readyCount = Object.keys(G.ready).length; v.n = G.part.length; }
-    if(G.phase === 'show'){ v.myCard = inPart(G, pid) ? G.cards[pid] : null; }       // 自分のカードだけ(他人のカードは送らない)
+    if(G.phase === 'show'){ v.myCard = inPart(G, pid) ? G.cards[pid] : null; v.mySwapped = !!G.swapped[pid]; v.swapped = Object.keys(G.swapped); }       // 自分のカードだけ(他人のカードは送らない)
     if(G.phase === 'result'){
       var st = {}, mx = -1, mn = 1e9;
       G.part.forEach(function(id){ st[id] = strength(G.cards[id], G.aceHigh); mx = Math.max(mx, st[id]); mn = Math.min(mn, st[id]); });
-      v.cards = G.cards; v.strong = st;
+      v.cards = G.cards; v.strong = st; v.old = G.old; v.swapped = Object.keys(G.swapped);
       v.highest = G.part.filter(function(id){ return st[id] === mx; });
       v.lowest = G.part.filter(function(id){ return st[id] === mn; });
       v.allTie = mx === mn;
@@ -131,7 +145,7 @@
   };
   function cardHtml(c, cls, st){
     cls = cls || ''; st = st || '';
-    if(!c) return '<div class="ipc back ' + cls + '" style="' + st + '"><div class="bk">🃏</div></div>';
+    if(!c) return '<div class="ipc back ' + cls + '" style="' + st + '"><div class="bk">🍻</div></div>';
     var col = c.s === 1 || c.s === 2 ? RED : BLK, sy = c.s >= 0 ? SUITS[c.s] : '', L = label(c);
     if(c.r === JOKER){
       return '<div class="ipc ' + cls + '" style="color:#7a2fd0;' + st + '"><div class="jk">🃏</div><div class="jt">JOKER</div>' +
@@ -192,6 +206,53 @@
     var g = a.createGain(); g.gain.value = 0.5; src.connect(bp); bp.connect(g); g.connect(sfx.out); src.start(t0);
   }
 
+  /* ---- スマホの傾き(立てているか寝かせているか) ----
+   * devicemotion の accelerationIncludingGravity から、画面の法線方向(z)に重力がどれだけかかっているかを見る。
+   * |z|/|g| が小さい = 画面が垂直に近い(立てている)。大きい = 画面が上(または下)を向いている(寝かせている)。
+   * 小さい値(0.40未満)で「立てた」、大きい値(0.55超)で「寝かせた」とし、間は前の状態を保つ(ヒステリシス)。符号は使わないので機種差の影響を受けない。
+   * 参考: MDN DeviceMotionEvent https://developer.mozilla.org/en-US/docs/Web/API/DeviceMotionEvent */
+  var TILT = { mode: 'wait', up: false, z: null, manual: false, card: null, started: false, perm: '' };
+  function showFace(){ return TILT.mode === 'sensor' ? TILT.up : TILT.manual; }
+  function paintSlot(){
+    var slot = document.getElementById('ipSlot'); if(!slot || !TILT.card) return;
+    var face = showFace(), key = (face ? 'f' : 'b') + TILT.card.r + '-' + TILT.card.s;
+    if(slot.dataset.key !== key){
+      slot.dataset.key = key;
+      slot.innerHTML = face ? cardHtml(TILT.card, '', 'animation:ipFlip .5s ease-out both') : cardHtml(null);
+    }
+    var m = document.getElementById('ipMsg');
+    if(m) m.innerHTML = face ? '🙌 そのまま額にかざして! 自分では見ない!' : '📱 いまは裏向き。<b>スマホを立てて</b>額にかざすと表になる';
+    var mb = document.getElementById('ipManual');
+    if(mb){
+      if(TILT.mode === 'manual'){
+        mb.innerHTML = '<button class="btn-ghost" id="ipTog" style="margin-top:6px">' + (TILT.manual ? '🙈 裏向きにする' : '👁 カードを表にする') + '(センサーが使えないため手動)</button>';
+        var tg = document.getElementById('ipTog'); if(tg) tg.onclick = function(){ TILT.manual = !TILT.manual; paintSlot(); };
+      } else mb.innerHTML = '';
+    }
+  }
+  function onMotion(e){
+    var g = e && e.accelerationIncludingGravity;
+    if(!g || g.x == null || g.y == null || g.z == null) return;
+    var mag = Math.sqrt(g.x * g.x + g.y * g.y + g.z * g.z); if(!(mag > 1)) return;
+    var az = Math.abs(g.z) / mag;
+    TILT.mode = 'sensor'; TILT.z = TILT.z == null ? az : TILT.z * 0.7 + az * 0.3;
+    var up = TILT.up;
+    if(TILT.z < 0.40) up = true; else if(TILT.z > 0.55) up = false;
+    if(up !== TILT.up || TILT.modeChanged){ TILT.up = up; TILT.modeChanged = false; paintSlot(); }
+  }
+  function startTilt(){
+    if(TILT.started) return; TILT.started = true;
+    try{ window.addEventListener('devicemotion', onMotion); }catch(e){}
+  }
+  function askMotion(){        // iPhone は、ユーザーのタップ操作の中でセンサーの許可を求める必要がある
+    startTilt();
+    try{
+      if(typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'){
+        DeviceMotionEvent.requestPermission().then(function(r){ TILT.perm = r; }).catch(function(){ TILT.perm = 'denied'; });
+      }
+    }catch(e){}
+  }
+
   function render(root, ctx){
     injectCss();
     var v = ctx.view, esc = ctx.esc, me = ctx.me, h = '';
@@ -227,12 +288,12 @@
     if(v.phase === 'ready'){
       root.innerHTML = top + '<div class="ipw">' + cardHtml(null) + '</div>' +
         '<div class="ipmsg">' + (v.myReady ? '準備OK! みんなを待っています' : 'スマホを持って、画面を外に向ける準備を') + '</div>' +
-        '<div class="ipsm">準備OK ' + v.readyCount + ' / ' + v.n + '人</div>' + ctx.waitHtml() +
+        '<div class="ipsm">準備OK ' + v.readyCount + ' / ' + v.n + '人' + (v.myReady ? '' : '<br>「準備OK」でスマホの傾きセンサーを使います(許可を求められたら許可)') + '</div>' + ctx.waitHtml() +
         '<div class="bottombar">' + (ctx.isHost
           ? (v.myReady ? '' : btn('rReady', '準備OK(構えた)', 'btn-ghost')) + btn('rCount', 'カウントダウン開始')
           : (v.myReady ? '<div class="sub-text" style="text-align:center">ホストがカウントダウンを始めます…</div>' : btn('rReady', '準備OK(構えた)'))) + '</div>';
-      if(q('rReady')) q('rReady').onclick = function(){ ctx.send({ t: 'ready' }); ctx.tone(660, 0.08, 'triangle', 0.1); };
-      if(q('rCount')) q('rCount').onclick = function(){ ctx.send({ t: 'count' }); };
+      if(q('rReady')) q('rReady').onclick = function(){ askMotion(); ctx.send({ t: 'ready' }); ctx.tone(660, 0.08, 'triangle', 0.1); };
+      if(q('rCount')) q('rCount').onclick = function(){ askMotion(); ctx.send({ t: 'count' }); };
       return;
     }
 
@@ -259,18 +320,31 @@
     /* ---- カード表示(額にかざす) ---- */
     if(v.phase === 'show'){
       var Ls = ctx.local, sk = 'show:' + v.round;
-      var first = Ls.skey !== sk; if(first){ Ls.skey = sk; Ls.t0 = Date.now(); Ls.played = false; }
+      var first = Ls.skey !== sk; if(first){ Ls.skey = sk; Ls.t0 = Date.now(); Ls.played = false; Ls.confirmAt = 0; TILT.manual = false; TILT.modeChanged = true; }
+      TILT.card = v.myCard; startTilt();
+      var swNames = v.swapped.length ? '🔁 交換した人: ' + v.swapped.map(function(id){ return esc(ctx.nameOf(id)); }).join('・') : '';
+      var confirming = Ls.confirmAt && Date.now() - Ls.confirmAt < 3500;
+      var swapBtn = v.mySwapped ? '<div class="sub-text" style="text-align:center;margin-bottom:6px">🔁 交換は使い切りました</div>'
+        : '<button class="' + (confirming ? 'btn-danger' : 'btn-ghost') + '" id="sSwap" style="margin-bottom:8px">' + (confirming ? 'もう一度押すと交換(取り消せません)' : '🔁 カードを交換する(1回だけ)') + '</button>';
       root.innerHTML = '<div class="ipflash" id="ipFlash"></div>' +
-        '<div class="ipmsg" style="margin-top:0">🙌 画面を外に向けて、頭の上にかざそう! 自分では見ない!</div>' +
-        '<div class="ipw">' + cardHtml(v.myCard, '', 'animation:ipFlip .55s ease-out both') + '</div>' +
-        '<div class="bottombar">' + (ctx.isHost ? btn('sResult', '答え合わせ(全員のカードを公開)', 'btn-ghost') : '<div class="sub-text" style="text-align:center">答え合わせはホストが始めます</div>') + '</div>';
+        '<div class="ipmsg" id="ipMsg" style="margin-top:0"></div>' +
+        '<div class="ipw" id="ipSlot"></div><div id="ipManual"></div>' +
+        '<div class="ipsm" style="min-height:20px">' + swNames + '</div>' +
+        '<div class="bottombar">' + swapBtn + (ctx.isHost ? btn('sResult', '答え合わせ(全員のカードを公開)', 'btn-ghost') : '<div class="sub-text" style="text-align:center">答え合わせはホストが始めます</div>') + '</div>';
+      paintSlot();
       if(!Ls.played){
         Ls.played = true;
         var fl = q('ipFlash'); if(fl) fl.style.animation = 'ipFlash .6s ease-out both';
         var sf = ctx.sfx && ctx.sfx(); if(sf) whoosh(sf);
         [784, 988, 1319].forEach(function(f, i){ setTimeout(function(){ ctx.tone(f, 0.18, 'triangle', 0.12); }, 120 + i * 90); });
         if(navigator.vibrate) try{ navigator.vibrate([60, 40, 90]); }catch(e){}
+        // 1.5秒たってもセンサーの値が来なければ、手動の切り替えボタンを出す(PCや、許可しなかった端末向け)
+        setTimeout(function(){ if(TILT.mode === 'wait'){ TILT.mode = 'manual'; paintSlot(); } }, 1500);
       }
+      if(q('sSwap')) q('sSwap').onclick = function(){
+        if(Ls.confirmAt && Date.now() - Ls.confirmAt < 3500){ Ls.confirmAt = 0; ctx.send({ t: 'swap' }); ctx.tone(440, 0.12, 'sawtooth', 0.1); }
+        else { Ls.confirmAt = Date.now(); ctx.toast('もう一度押すと交換します'); render(root, ctx); }
+      };
       if(q('sResult')) q('sResult').onclick = function(){ ctx.send({ t: 'result' }); };
       return;
     }
@@ -282,7 +356,8 @@
       return '<div style="display:flex;align-items:center;gap:12px;background:var(--bg-surface);border:1.5px solid ' + (hi ? 'var(--gold)' : lo ? 'var(--danger)' : 'var(--line)') + ';border-radius:14px;padding:8px 12px;margin-top:8px">' +
         '<div style="flex:0 0 auto">' + cardHtml(v.cards[id], 'mini') + '</div>' +
         '<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">' + ctx.chip(id) +
-        '<span style="font-size:12px;font-weight:900;color:' + (hi ? 'var(--gold)' : lo ? 'var(--danger)' : 'var(--text-muted)') + '">' + (hi ? '👑 いちばん強い' : lo ? 'いちばん弱い' : '') + '</span></div>' +
+        '<span style="font-size:12px;font-weight:900;color:' + (hi ? 'var(--gold)' : lo ? 'var(--danger)' : 'var(--text-muted)') + '">' + (hi ? '👑 いちばん強い' : lo ? 'いちばん弱い' : '') + '</span>' +
+        (v.old && v.old[id] ? '<span style="font-size:11px;color:var(--text-muted)">🔁 交換: ' + miniHtml(v.old[id]) + ' → ' + miniHtml(v.cards[id]) + '</span>' : '') + '</div>' +
         '<span style="margin-left:auto;font-size:15px">' + miniHtml(v.cards[id]) + '</span></div>';
     }).join('');
     var mine = v.cards[me];
@@ -298,16 +373,19 @@
   // 開発中モード用のCPU(「準備OK」を押すだけ)
   function bot(v, me, rnd){
     if(v.inPart && v.phase === 'ready' && !v.myReady) return { t: 'ready' };
+    if(v.inPart && v.phase === 'show' && !v.mySwapped && rnd(3) === 0) return { t: 'swap' };     // ときどき交換する(動作確認用)
     return null;
   }
 
   NO.register({
     id: 'indian', emoji: '🃏', title: 'インディアンポーカー', accent: '#E5484D', accentInk: '#fff', min: 2, max: 10,
-    tagline: '自分のカードは見ずに、スマホを額にかざす。みんなのカードを見て勝負を読み合おう。',
+    tagline: '自分のカードは見ずに、スマホを立てて額にかざす。1回だけ交換もできる。',
     rules: [
       'みんなに<b>トランプを1枚ずつ配る</b>。自分のスマホには<b>自分のカードが大きく表示される</b>。',
       'カードが表になったら、<b>自分は画面を見ないで</b>スマホの画面を外に向け、<b>額(頭の上)にかざす</b>。',
       '見えるのは<b>他の人のカードだけ</b>。みんなのカードを見て、自分のカードが勝てそうか読み合う。勝負するか降りるか、飲むのは誰かは<b>みんなで決める</b>(アプリは判定しない)。',
+      '<b>スマホが寝ている(画面が上向き)間は裏向き</b>。スマホを立てて額にかざすと表になる(iPhoneはセンサーの許可が必要)。',
+      '各自<b>1回だけカードを交換</b>できる(山札の次のカードと入れ替え。どちらも自分には見えない)。交換した人は全員に表示される。',
       '最後に<b>答え合わせ</b>で全員のカードと強さ順を公開。強さは 2 &lt; … &lt; K &lt; A(Aを最弱にもできる)、ジョーカーありなら最強。'
     ],
     game: game, bot: bot, render: render
