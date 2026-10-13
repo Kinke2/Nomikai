@@ -1,0 +1,315 @@
+/*
+  インディアンポーカー(オンライン版・開発中)
+  みんなに1枚ずつトランプが配られる。自分のスマホには自分のカードが大きく出る。
+  それを自分は見ないまま、画面を外に向けて額(頭の上)にかざす → 他の人のカードだけが見える状態で、
+  「自分のカードは勝てそうか?」を読み合う(誰が強そうか・降りるか勝負するか は、みんなで口頭で決める)。
+  アプリがやるのは「配る・見せる・答え合わせ」だけ。勝敗の細かい判定や点数計算はしない(見た目重視)。
+  進行: 準備(カードは裏向き)→ カウントダウン 3・2・1 → カードが表になる(額にかざす)→ 答え合わせ(全員のカードと強さ順を公開)
+  公平性: 山札は 52枚(+ジョーカー)を crypto.getRandomValues の棄却サンプリング(randInt)+ Fisher–Yates でシャッフルして
+          先頭から1人1枚ずつ配るだけ。同じラウンドで同じカードが重なることはない。配り方・強さの扱いにアプリ側の補正は一切ない。
+          カードの強さは 2 < 3 < … < 10 < J < Q < K < A < ジョーカー(Aを弱くする設定も選べる)。同じ強さは「同点」と表示する。
+  注意: 自分のカードは自分の画面に出る。画面を見ないで額にかざすのは、遊ぶ人同士のルール(アプリでは強制できない)。
+  参考文献:
+    [1] Blind man's bluff(Indian poker): https://en.wikipedia.org/wiki/Blind_man%27s_bluff_(poker)
+    [2] Fisher–Yates shuffle(偏りのないシャッフル): https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
+    [3] MDN Web Audio API(効果音の合成): https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API
+    [4] 通信・乱数・参考文献一覧は online-core.js の冒頭を参照
+  (オンライン ロビーに登録されるゲーム。通信・部屋・QRは online-core.js が担当)
+*/
+(function(){
+  'use strict';
+  var NO = window.NomikaiOnline;
+
+  /* PURE-BEGIN */
+  var SUITS = ['♠', '♥', '♦', '♣'];
+  var JOKER = 15;
+  function activeIds(G){ return G.part.filter(function(id){ return !G.offline[id]; }); }
+  function inPart(G, pid){ return G.part.indexOf(pid) >= 0; }
+  function shuffle(arr, rnd){                       // Fisher–Yates
+    var a = arr.slice();
+    for(var i = a.length - 1; i > 0; i--){ var j = rnd(i + 1), t = a[i]; a[i] = a[j]; a[j] = t; }
+    return a;
+  }
+  function makeDeck(joker, rnd){
+    var d = [];
+    for(var s = 0; s < 4; s++) for(var r = 2; r <= 14; r++) d.push({ r: r, s: s });
+    if(joker) d.push({ r: JOKER, s: -1 });
+    return shuffle(d, rnd);
+  }
+  function strength(c, aceHigh){
+    if(c.r === JOKER) return 99;
+    if(c.r === 14) return aceHigh ? 14 : 1;
+    return c.r;
+  }
+
+  function newState(players, rnd){
+    var G = { players: players, offline: {}, phase: 'setup', joker: false, aceHigh: true, round: 0, part: [], cards: {}, ready: {} };
+    syncSetup(G);
+    return G;
+  }
+  function syncSetup(G){ G.part = G.players.map(function(p){ return p.id; }).filter(function(id){ return !G.offline[id]; }); }
+  function deal(G, rnd){
+    syncSetup(G);
+    var deck = makeDeck(G.joker, rnd);
+    G.cards = {}; G.ready = {};
+    G.part.forEach(function(id, i){ G.cards[id] = deck[i]; });      // 先頭から1人1枚(重複なし)
+    G.round++; G.phase = 'ready';
+  }
+  function act(G, pid, a, rnd){
+    if(!a || typeof a !== 'object') return { error: '操作が不正です' };
+    var host = pid === 'p0';
+    switch(a.t){
+      case 'setJoker':
+        if(!host || G.phase !== 'setup' || typeof a.v !== 'boolean') return { error: '今は変えられません' };
+        G.joker = a.v; return { ok: true };
+      case 'setAce':
+        if(!host || G.phase !== 'setup' || typeof a.v !== 'boolean') return { error: '今は変えられません' };
+        G.aceHigh = a.v; return { ok: true };
+      case 'start':
+        if(!host || G.phase !== 'setup') return { error: 'ホストだけが始められます' };
+        syncSetup(G); if(G.part.length < 2) return { error: '2人以上必要です' };
+        G.round = 0; deal(G, rnd); return { ok: true };
+      case 'ready':
+        if(G.phase !== 'ready' || !inPart(G, pid)) return { error: '今は押せません' };
+        G.ready[pid] = true; return { ok: true };
+      case 'count':
+        if(!host || G.phase !== 'ready') return { error: '今は始められません' };
+        G.phase = 'count'; return { ok: true };
+      case 'countDone':
+        if(!host || G.phase !== 'count') return { error: '今は進められません' };
+        G.phase = 'show'; return { ok: true };
+      case 'result':
+        if(!host || G.phase !== 'show') return { error: '今は進められません' };
+        G.phase = 'result'; return { ok: true };
+      case 'next':
+        if(!host || G.phase !== 'result') return { error: '今は進められません' };
+        deal(G, rnd); return { ok: true };
+      case 'resetup':
+        if(!host || G.phase !== 'result') return { error: '今は戻れません' };
+        G.phase = 'setup'; syncSetup(G); return { ok: true };
+    }
+    return { error: '未対応の操作' };
+  }
+  function force(G){
+    if(G.phase === 'ready') G.phase = 'count';
+    else if(G.phase === 'count') G.phase = 'show';
+    else if(G.phase === 'show') G.phase = 'result';
+  }
+  function waiting(G){ return G.phase === 'ready' ? activeIds(G).filter(function(id){ return !G.ready[id]; }) : []; }
+  function sync(G){ if(G.phase === 'setup') syncSetup(G); }
+
+  function view(G, pid){
+    var v = { phase: G.phase, round: G.round, part: G.part, inPart: inPart(G, pid), joker: G.joker, aceHigh: G.aceHigh };
+    if(G.phase === 'ready'){ v.myReady = !!G.ready[pid]; v.readyCount = Object.keys(G.ready).length; v.n = G.part.length; }
+    if(G.phase === 'show'){ v.myCard = inPart(G, pid) ? G.cards[pid] : null; }       // 自分のカードだけ(他人のカードは送らない)
+    if(G.phase === 'result'){
+      var st = {}, mx = -1, mn = 1e9;
+      G.part.forEach(function(id){ st[id] = strength(G.cards[id], G.aceHigh); mx = Math.max(mx, st[id]); mn = Math.min(mn, st[id]); });
+      v.cards = G.cards; v.strong = st;
+      v.highest = G.part.filter(function(id){ return st[id] === mx; });
+      v.lowest = G.part.filter(function(id){ return st[id] === mn; });
+      v.allTie = mx === mn;
+    }
+    return v;
+  }
+  var game = { newState: newState, act: act, view: view, waiting: waiting, force: force, sync: sync };
+  /* PURE-END */
+
+  /* ---------------- 見た目(カードの描画・演出) ---------------- */
+  var LAB = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' };
+  function label(c){ return c.r === JOKER ? 'JOKER' : (LAB[c.r] || String(c.r)); }
+  var RED = '#D62D20', BLK = '#14161c';
+  // 数字札のシンボル配置(標準的なトランプの並び。座標は札の幅・高さに対する%。下半分の記号は上下逆さまに描く)
+  var PIPS = {
+    2: [[50, 20], [50, 80]], 3: [[50, 20], [50, 50], [50, 80]],
+    4: [[30, 20], [70, 20], [30, 80], [70, 80]], 5: [[30, 20], [70, 20], [50, 50], [30, 80], [70, 80]],
+    6: [[30, 20], [70, 20], [30, 50], [70, 50], [30, 80], [70, 80]],
+    7: [[30, 20], [70, 20], [50, 35], [30, 50], [70, 50], [30, 80], [70, 80]],
+    8: [[30, 20], [70, 20], [50, 35], [30, 50], [70, 50], [50, 65], [30, 80], [70, 80]],
+    9: [[30, 18], [70, 18], [30, 39], [70, 39], [50, 50], [30, 61], [70, 61], [30, 82], [70, 82]],
+    10: [[30, 18], [70, 18], [50, 29], [30, 39], [70, 39], [30, 61], [70, 61], [50, 71], [30, 82], [70, 82]]
+  };
+  function cardHtml(c, cls, st){
+    cls = cls || ''; st = st || '';
+    if(!c) return '<div class="ipc back ' + cls + '" style="' + st + '"><div class="bk">🃏</div></div>';
+    var col = c.s === 1 || c.s === 2 ? RED : BLK, sy = c.s >= 0 ? SUITS[c.s] : '', L = label(c);
+    if(c.r === JOKER){
+      return '<div class="ipc ' + cls + '" style="color:#7a2fd0;' + st + '"><div class="jk">🃏</div><div class="jt">JOKER</div>' +
+        '<div class="ci tl"><b>★</b></div><div class="ci br"><b>★</b></div></div>';
+    }
+    var mid = '';
+    if(c.r === 14){ mid = '<div class="pip" style="left:50%;top:50%;font-size:calc(var(--w) * .62)">' + sy + '</div>'; }
+    else if(c.r >= 11){ mid = '<div class="face"><div class="fl">' + L + '</div><div class="fs">' + sy + '</div></div>'; }
+    else {
+      mid = PIPS[c.r].map(function(p){
+        // 隅の数字と重ならないよう、内側に寄せる。記号は上下逆さまにしない(♥が♠に見えて紛らわしいため)
+        return '<div class="pip" style="left:' + (50 + (p[0] - 50) * 0.72).toFixed(1) + '%;top:' + (50 + (p[1] - 50) * 0.82).toFixed(1) + '%">' + sy + '</div>';
+      }).join('');
+    }
+    return '<div class="ipc ' + cls + '" style="color:' + col + ';' + st + '">' + mid +
+      '<div class="ci tl"><b>' + L + '</b><span>' + sy + '</span></div><div class="ci br"><b>' + L + '</b><span>' + sy + '</span></div></div>';
+  }
+  function miniHtml(c){
+    if(c.r === JOKER) return '<span style="color:#9b59e6;font-weight:900">🃏 JOKER</span>';
+    return '<span style="font-weight:900;color:' + (c.s === 1 || c.s === 2 ? '#ff6b5b' : '#e8e8ee') + '">' + SUITS[c.s] + label(c) + '</span>';
+  }
+
+  var CSS_ID = 'indian-css';
+  var CSS = [
+    '.ipw{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1 1 auto;min-height:0;padding:6px 0;}',
+    '.ipc{--w:min(86vw,54vh);position:relative;width:var(--w);aspect-ratio:5/7;border-radius:calc(var(--w) * .06);background:linear-gradient(160deg,#ffffff 0%,#f3efe6 100%);box-shadow:0 14px 40px rgba(0,0,0,.55),inset 0 0 0 calc(var(--w) * .012) #d8d1c0;flex:0 0 auto;overflow:hidden;font-family:Georgia,"Times New Roman","Hiragino Mincho ProN",serif;}',
+    '.ipc.mini{--w:64px;}',
+    '.ci{position:absolute;display:flex;flex-direction:column;align-items:center;line-height:1;}',
+    '.ci b{font-size:calc(var(--w) * .21);font-weight:900;letter-spacing:-.04em;}.ci span{font-size:calc(var(--w) * .17);margin-top:calc(var(--w) * .01);}',
+    '.ci.tl{left:calc(var(--w) * .05);top:calc(var(--w) * .04);}.ci.br{right:calc(var(--w) * .05);bottom:calc(var(--w) * .04);}',
+    '.pip{position:absolute;transform:translate(-50%,-50%);font-size:calc(var(--w) * .22);line-height:1;}',
+    '.face{position:absolute;left:22%;right:22%;top:14%;bottom:14%;border:calc(var(--w) * .012) solid currentColor;border-radius:calc(var(--w) * .04);display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.03);}',
+    '.face .fl{font-size:calc(var(--w) * .46);font-weight:900;line-height:1;}.face .fs{font-size:calc(var(--w) * .26);line-height:1;margin-top:calc(var(--w) * .02);}',
+    '.jk{position:absolute;left:0;right:0;top:20%;text-align:center;font-size:calc(var(--w) * .5);}',
+    '.jt{position:absolute;left:0;right:0;bottom:16%;text-align:center;font-size:calc(var(--w) * .1);font-weight:900;letter-spacing:.2em;}',
+    '.ipc.back{background:repeating-linear-gradient(45deg,#7c1423 0 12px,#5e0f1b 12px 24px);box-shadow:0 14px 40px rgba(0,0,0,.55),inset 0 0 0 calc(var(--w) * .035) #f3efe6;display:flex;align-items:center;justify-content:center;}',
+    '.ipc.back .bk{font-size:calc(var(--w) * .4);opacity:.9;}',
+    '@keyframes ipFlip{0%{transform:rotateY(90deg) scale(.9);}60%{transform:rotateY(-8deg) scale(1.04);}100%{transform:rotateY(0) scale(1);}}',
+    '@keyframes ipNum{0%{transform:scale(2.2);opacity:0;}30%{transform:scale(1);opacity:1;}85%{transform:scale(.95);opacity:1;}100%{transform:scale(.6);opacity:0;}}',
+    '@keyframes ipFlash{0%{opacity:.9;}100%{opacity:0;}}',
+    '@keyframes ipPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.03);}}',
+    '.ipcount{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;}',
+    '.ipcount b{position:absolute;font-size:min(46vw,30vh);font-weight:900;color:#fff;text-shadow:0 0 30px rgba(255,200,90,.9),0 6px 18px rgba(0,0,0,.7);opacity:0;}',
+    '.ipflash{position:fixed;inset:0;z-index:50;pointer-events:none;background:radial-gradient(circle,#fff,rgba(255,236,170,.6) 50%,rgba(0,0,0,0) 80%);opacity:0;}',
+    '.ipmsg{text-align:center;font-weight:900;font-size:15px;line-height:1.6;color:#ffd98a;margin:2px 0 6px;}',
+    '.ipsm{font-size:12px;color:var(--text-muted);text-align:center;line-height:1.7;}'
+  ].join('\n');
+  function injectCss(){
+    if(document.getElementById(CSS_ID)) return;
+    var st = document.createElement('style'); st.id = CSS_ID; st.textContent = CSS; document.head.appendChild(st);
+  }
+  // 効果音(Web Audio API で合成。参考: MDN Web Audio API https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)
+  function whoosh(sfx){
+    var a = sfx.ac, t0 = a.currentTime + 0.01, n = Math.floor(a.sampleRate * 0.3), buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
+    for(var i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.sin(Math.PI * i / n);
+    var src = a.createBufferSource(); src.buffer = buf;
+    var bp = a.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 0.8; bp.frequency.setValueAtTime(600, t0); bp.frequency.exponentialRampToValueAtTime(3600, t0 + 0.28);
+    var g = a.createGain(); g.gain.value = 0.5; src.connect(bp); bp.connect(g); g.connect(sfx.out); src.start(t0);
+  }
+
+  function render(root, ctx){
+    injectCss();
+    var v = ctx.view, esc = ctx.esc, me = ctx.me, h = '';
+    var q = function(id){ return document.getElementById(id); };
+    function btn(id, label2, cls){ return '<button class="' + (cls || 'btn-primary') + '" id="' + id + '">' + label2 + '</button>'; }
+    var top = '<div class="eyebrow">INDIAN POKER' + (v.round ? ' ・ ' + v.round + '枚目' : '') + '</div>';
+
+    /* ---- 設定 ---- */
+    if(v.phase === 'setup'){
+      var seg = function(id, text, on){
+        return '<button id="' + id + '" ' + (ctx.isHost ? '' : 'disabled ') + 'style="flex:1;padding:14px 0;border-radius:12px;border:2px solid ' + (on ? 'var(--accent)' : 'var(--line)') + ';background:' + (on ? 'rgba(229,72,77,.14)' : 'var(--bg-surface)') + ';color:' + (on ? 'var(--accent)' : 'var(--text)') + ';font-weight:900;font-size:14px">' + text + '</button>';
+      };
+      h = top + '<div class="card-ui"><div class="big-text" style="font-size:20px">インディアンポーカー</div>' +
+        '<div class="sub-text">自分のスマホに自分のカードが出る。<b>自分は見ずに</b>、画面を外に向けて<b>額にかざす</b>。みんなのカードだけを見て、自分が勝てるかを読み合おう。</div></div>' +
+        '<div class="section-label">ジョーカー</div><div style="display:flex;gap:8px">' + seg('sJ0', 'なし', !v.joker) + seg('sJ1', 'あり(最強)', v.joker) + '</div>' +
+        '<div class="section-label">エース(A)</div><div style="display:flex;gap:8px">' + seg('sAH', 'Aが最強', v.aceHigh) + seg('sAL', 'Aが最弱(=1)', !v.aceHigh) + '</div>' +
+        '<div class="sub-text" style="margin-top:12px">勝敗の判定はみんなで決める。アプリは配って見せて、最後に答え合わせをするだけ。</div>' +
+        '<div class="spacer"></div><div class="bottombar">' + (ctx.isHost ? btn('sStart', '配る') : '<div class="sub-text" style="text-align:center">ホストが配るのを待っています…</div>') + '</div>';
+      root.innerHTML = h;
+      if(q('sJ0')) q('sJ0').onclick = function(){ ctx.send({ t: 'setJoker', v: false }); };
+      if(q('sJ1')) q('sJ1').onclick = function(){ ctx.send({ t: 'setJoker', v: true }); };
+      if(q('sAH')) q('sAH').onclick = function(){ ctx.send({ t: 'setAce', v: true }); };
+      if(q('sAL')) q('sAL').onclick = function(){ ctx.send({ t: 'setAce', v: false }); };
+      if(q('sStart')) q('sStart').onclick = function(){ ctx.send({ t: 'start' }); };
+      return;
+    }
+    if(!v.inPart && v.phase !== 'result'){
+      root.innerHTML = top + '<div class="card-ui"><div class="big-text">今回は観戦中</div><div class="sub-text">途中で入り直したので、次のカードから参加できます。</div></div>';
+      return;
+    }
+
+    /* ---- 準備(カードは裏向き。見えない) ---- */
+    if(v.phase === 'ready'){
+      root.innerHTML = top + '<div class="ipw">' + cardHtml(null) + '</div>' +
+        '<div class="ipmsg">' + (v.myReady ? '準備OK! みんなを待っています' : 'スマホを持って、画面を外に向ける準備を') + '</div>' +
+        '<div class="ipsm">準備OK ' + v.readyCount + ' / ' + v.n + '人</div>' + ctx.waitHtml() +
+        '<div class="bottombar">' + (ctx.isHost
+          ? (v.myReady ? '' : btn('rReady', '準備OK(構えた)', 'btn-ghost')) + btn('rCount', 'カウントダウン開始')
+          : (v.myReady ? '<div class="sub-text" style="text-align:center">ホストがカウントダウンを始めます…</div>' : btn('rReady', '準備OK(構えた)'))) + '</div>';
+      if(q('rReady')) q('rReady').onclick = function(){ ctx.send({ t: 'ready' }); ctx.tone(660, 0.08, 'triangle', 0.1); };
+      if(q('rCount')) q('rCount').onclick = function(){ ctx.send({ t: 'count' }); };
+      return;
+    }
+
+    /* ---- カウントダウン ---- */
+    if(v.phase === 'count'){
+      var L = ctx.local, rk = 'count:' + v.round;
+      if(L.rkey !== rk){ L.rkey = rk; L.t0 = Date.now(); L.played = false; L.sent = false; }
+      var el = (Date.now() - L.t0) / 1000;
+      var A = function(name, dur, ease, delay){ return name + ' ' + dur + 's ' + ease + ' ' + (delay - el).toFixed(2) + 's 1 both'; };
+      root.innerHTML = top + '<div class="ipw" style="position:relative">' + cardHtml(null) +
+        '<div class="ipcount">' + [3, 2, 1].map(function(n, i){ return '<b style="animation:' + A('ipNum', 0.95, 'ease-out', 0.2 + i) + '">' + n + '</b>'; }).join('') + '</div></div>' +
+        '<div class="ipmsg">画面を見ずに、外に向けて額にかざして!</div>' +
+        '<div class="bottombar"><div class="sub-text" style="text-align:center">' + (ctx.isHost ? 'まもなくカードが表になります…' : '見ないで構えて…') + '</div></div>';
+      if(!L.played){
+        L.played = true;
+        [0.2, 1.2, 2.2].forEach(function(t, i){ setTimeout(function(){ ctx.tone(520 + 60 * i, 0.12, 'triangle', 0.14); if(navigator.vibrate) try{ navigator.vibrate(30); }catch(e){} }, t * 1000); });
+      }
+      if(ctx.isHost){
+        ctx.every(function(){ if(!L.sent && (Date.now() - L.t0) / 1000 >= 3.45){ L.sent = true; ctx.send({ t: 'countDone' }); } }, 300);
+      }
+      return;
+    }
+
+    /* ---- カード表示(額にかざす) ---- */
+    if(v.phase === 'show'){
+      var Ls = ctx.local, sk = 'show:' + v.round;
+      var first = Ls.skey !== sk; if(first){ Ls.skey = sk; Ls.t0 = Date.now(); Ls.played = false; }
+      root.innerHTML = '<div class="ipflash" id="ipFlash"></div>' +
+        '<div class="ipmsg" style="margin-top:0">🙌 画面を外に向けて、頭の上にかざそう! 自分では見ない!</div>' +
+        '<div class="ipw">' + cardHtml(v.myCard, '', 'animation:ipFlip .55s ease-out both') + '</div>' +
+        '<div class="bottombar">' + (ctx.isHost ? btn('sResult', '答え合わせ(全員のカードを公開)', 'btn-ghost') : '<div class="sub-text" style="text-align:center">答え合わせはホストが始めます</div>') + '</div>';
+      if(!Ls.played){
+        Ls.played = true;
+        var fl = q('ipFlash'); if(fl) fl.style.animation = 'ipFlash .6s ease-out both';
+        var sf = ctx.sfx && ctx.sfx(); if(sf) whoosh(sf);
+        [784, 988, 1319].forEach(function(f, i){ setTimeout(function(){ ctx.tone(f, 0.18, 'triangle', 0.12); }, 120 + i * 90); });
+        if(navigator.vibrate) try{ navigator.vibrate([60, 40, 90]); }catch(e){}
+      }
+      if(q('sResult')) q('sResult').onclick = function(){ ctx.send({ t: 'result' }); };
+      return;
+    }
+
+    /* ---- 答え合わせ ---- */
+    var order = v.part.slice().sort(function(a, b){ return v.strong[b] - v.strong[a]; });
+    var rows = order.map(function(id){
+      var hi = v.highest.indexOf(id) >= 0 && !v.allTie, lo = v.lowest.indexOf(id) >= 0 && !v.allTie;
+      return '<div style="display:flex;align-items:center;gap:12px;background:var(--bg-surface);border:1.5px solid ' + (hi ? 'var(--gold)' : lo ? 'var(--danger)' : 'var(--line)') + ';border-radius:14px;padding:8px 12px;margin-top:8px">' +
+        '<div style="flex:0 0 auto">' + cardHtml(v.cards[id], 'mini') + '</div>' +
+        '<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">' + ctx.chip(id) +
+        '<span style="font-size:12px;font-weight:900;color:' + (hi ? 'var(--gold)' : lo ? 'var(--danger)' : 'var(--text-muted)') + '">' + (hi ? '👑 いちばん強い' : lo ? 'いちばん弱い' : '') + '</span></div>' +
+        '<span style="margin-left:auto;font-size:15px">' + miniHtml(v.cards[id]) + '</span></div>';
+    }).join('');
+    var mine = v.cards[me];
+    h = top + '<div class="card-ui"><div class="big-text" style="font-size:20px">答え合わせ</div>' +
+      '<div class="sub-text">' + (v.allTie ? '全員同じ強さ(引き分け)' : '強い順に並べました。' + (v.aceHigh ? '(Aが最強' : '(Aが最弱') + (v.joker ? '・ジョーカーあり)' : ')')) + '</div></div>' +
+      (mine ? '<div class="sub-text" style="text-align:center;margin-top:8px">あなたのカードは ' + miniHtml(mine) + ' でした</div>' : '') + rows +
+      '<div class="spacer"></div><div class="bottombar">' + (ctx.isHost ? btn('rNext', '次のカードを配る') + btn('rSetup', '設定に戻る', 'btn-ghost') : '<div class="sub-text" style="text-align:center">ホストが次へ進めるのを待っています…</div>') + '</div>';
+    root.innerHTML = h;
+    if(q('rNext')) q('rNext').onclick = function(){ ctx.send({ t: 'next' }); };
+    if(q('rSetup')) q('rSetup').onclick = function(){ ctx.send({ t: 'resetup' }); };
+  }
+
+  // 開発中モード用のCPU(「準備OK」を押すだけ)
+  function bot(v, me, rnd){
+    if(v.inPart && v.phase === 'ready' && !v.myReady) return { t: 'ready' };
+    return null;
+  }
+
+  NO.register({
+    id: 'indian', emoji: '🃏', title: 'インディアンポーカー', accent: '#E5484D', accentInk: '#fff', min: 2, max: 10,
+    tagline: '自分のカードは見ずに、スマホを額にかざす。みんなのカードを見て勝負を読み合おう。',
+    rules: [
+      'みんなに<b>トランプを1枚ずつ配る</b>。自分のスマホには<b>自分のカードが大きく表示される</b>。',
+      'カードが表になったら、<b>自分は画面を見ないで</b>スマホの画面を外に向け、<b>額(頭の上)にかざす</b>。',
+      '見えるのは<b>他の人のカードだけ</b>。みんなのカードを見て、自分のカードが勝てそうか読み合う。勝負するか降りるか、飲むのは誰かは<b>みんなで決める</b>(アプリは判定しない)。',
+      '最後に<b>答え合わせ</b>で全員のカードと強さ順を公開。強さは 2 &lt; … &lt; K &lt; A(Aを最弱にもできる)、ジョーカーありなら最強。'
+    ],
+    game: game, bot: bot, render: render
+  });
+})();
