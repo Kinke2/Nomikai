@@ -4,7 +4,7 @@
   それを自分は見ないまま、画面を外に向けて額(頭の上)にかざす → 他の人のカードだけが見える状態で、
   「自分のカードは勝てそうか?」を読み合う(誰が強そうか・降りるか勝負するか は、みんなで口頭で決める)。
   アプリがやるのは「配る・見せる・答え合わせ」だけ。勝敗の細かい判定や点数計算はしない(見た目重視)。
-  進行: 準備(カードは裏向き。各自「準備OK」→ スマホを立てて額に当てる)→ 全員が額に当てたことを検知 → 5秒カウントダウン → カードが表になる → 答え合わせ(全員のカードと強さ順を公開)
+  進行: 準備(カードは裏向き。各自「準備OK」→ スマホを立てて額に当てる)→ 全員が額に当てたことを検知 → 3秒カウントダウン → カードが表になる → 答え合わせ(全員のカードと強さ順を公開)
           カウントダウン中に誰かがスマホを下ろしたら、待機に戻る(全員がそろうまで始まらない)。
   公平性: 山札は 52枚(+ジョーカー)を crypto.getRandomValues の棄却サンプリング(randInt)+ Fisher–Yates でシャッフルして
           先頭から1人1枚ずつ配るだけ。同じラウンドで同じカードが重なることはない。配り方・強さの扱いにアプリ側の補正は一切ない。
@@ -14,6 +14,7 @@
           iPhone はセンサーの許可が必要で、「準備OK」や「カウントダウン開始」を押したときに許可を求める。センサーが使えない端末では、手動で表示/裏向きを切り替えるボタンが出る。
   カード交換: 各自1ラウンドに1回だけ、自分のカードを山札の次のカードと交換できる(交換前のカードは捨て札。どちらのカードも自分には見えない)。
           交換した人は全員の画面に表示される。答え合わせでは「交換前→交換後」も公開する。
+  交換ボタンは、スマホを机に置いている(寝かせている)間だけ出る。全員が机に置くと、ホストに「答え合わせ」ボタンが出る。
   注意: 自分のカードは自分の画面に出る。画面を見ないで額にかざすのは、遊ぶ人同士のルール(アプリでは強制できない)。
           スマホを立てて自分の顔の前で眺めれば見えてしまう(センサーは「立っているか」しか分からない)。
     [5] MDN DeviceMotionEvent(加速度センサー): https://developer.mozilla.org/en-US/docs/Web/API/DeviceMotionEvent
@@ -51,7 +52,7 @@
   }
 
   function newState(players, rnd){
-    var G = { players: players, offline: {}, phase: 'setup', joker: false, aceHigh: true, round: 0, part: [], cards: {}, ready: {}, up: {}, countNo: 0, forced: false, deck: [], dpos: 0, swapped: {}, old: {} };
+    var G = { players: players, offline: {}, phase: 'setup', joker: false, aceHigh: true, round: 0, part: [], cards: {}, ready: {}, up: {}, countNo: 0, forced: false, deck: [], dpos: 0, swapped: {}, old: {}, down: {} };
     syncSetup(G);
     return G;
   }
@@ -59,7 +60,7 @@
   function deal(G, rnd){
     syncSetup(G);
     var deck = makeDeck(G.joker, rnd);
-    G.cards = {}; G.ready = {}; G.up = {}; G.swapped = {}; G.old = {};
+    G.cards = {}; G.ready = {}; G.up = {}; G.swapped = {}; G.old = {}; G.down = {};
     G.part.forEach(function(id, i){ G.cards[id] = deck[i]; });      // 先頭から1人1枚(重複なし)
     G.deck = deck; G.dpos = G.part.length;                          // 残りの山札(交換用。host の内部だけが持つ)
     G.round++; G.phase = 'ready';
@@ -97,7 +98,10 @@
         startCount(G, true); return { ok: true };
       case 'countDone':
         if(!host || G.phase !== 'count') return { error: '今は進められません' };
-        G.phase = 'show'; return { ok: true };
+        G.phase = 'show'; G.down = {}; return { ok: true };
+      case 'down':      // 「スマホを机に置いた(寝ている)」の申告。全員が置くと、ホストに終了ボタンが出る
+        if(G.phase !== 'show' || !inPart(G, pid) || typeof a.v !== 'boolean') return { error: '今は送れません' };
+        G.down[pid] = a.v; return { ok: true };
       case 'swap':
         if(G.phase !== 'show' || !inPart(G, pid)) return { error: '今は交換できません' };
         if(G.swapped[pid]) return { error: '交換は1回だけです' };
@@ -118,16 +122,16 @@
   }
   function force(G){
     if(G.phase === 'ready') startCount(G, true);
-    else if(G.phase === 'count') G.phase = 'show';
+    else if(G.phase === 'count'){ G.phase = 'show'; G.down = {}; }
     else if(G.phase === 'show') G.phase = 'result';
   }
-  function waiting(G){ return G.phase === 'ready' ? activeIds(G).filter(function(id){ return !(G.ready[id] && G.up[id]); }) : []; }
+  function waiting(G){ return G.phase === 'ready' ? activeIds(G).filter(function(id){ return !(G.ready[id] && G.up[id]); }) : (G.phase === 'show' ? activeIds(G).filter(function(id){ return !G.down[id]; }) : []); }
   function sync(G){ if(G.phase === 'setup') syncSetup(G); else if(G.phase === 'ready' || G.phase === 'count') checkStart(G); }
 
   function view(G, pid){
     var v = { phase: G.phase, round: G.round, part: G.part, inPart: inPart(G, pid), joker: G.joker, aceHigh: G.aceHigh };
     if(G.phase === 'ready' || G.phase === 'count'){ v.myReady = !!G.ready[pid]; v.myUp = !!G.up[pid]; v.readyCount = Object.keys(G.ready).length; v.upCount = Object.keys(G.up).filter(function(id){ return G.up[id]; }).length; v.n = G.part.length; v.countNo = G.countNo; }
-    if(G.phase === 'show'){ v.myCard = inPart(G, pid) ? G.cards[pid] : null; v.mySwapped = !!G.swapped[pid]; v.swapped = Object.keys(G.swapped); }       // 自分のカードだけ(他人のカードは送らない)
+    if(G.phase === 'show'){ v.myCard = inPart(G, pid) ? G.cards[pid] : null; v.mySwapped = !!G.swapped[pid]; v.swapped = Object.keys(G.swapped); v.myDown = !!G.down[pid]; var ac = activeIds(G); v.allDown = ac.length > 0 && ac.every(function(id){ return G.down[id]; }); }       // 自分のカードだけ(他人のカードは送らない)
     if(G.phase === 'result'){
       var st = {}, mx = -1, mn = 1e9;
       G.part.forEach(function(id){ st[id] = strength(G.cards[id], G.aceHigh); mx = Math.max(mx, st[id]); mn = Math.min(mn, st[id]); });
@@ -183,8 +187,10 @@
   var CSS_ID = 'indian-css';
   var CSS = [
     '.ipw{--w:max(120px,min(80vw,calc((100vh - 310px) * .714)));display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1 1 auto;min-height:0;padding:14px 0;overflow:hidden;}',
-    '@supports(height:100dvh){.ipw{--w:max(120px,min(80vw,calc((100dvh - 310px) * .714)));}.ipw.rdy{--w:max(120px,min(72vw,calc((100dvh - 400px) * .714)));}}',
-    '.ipw.rdy{--w:max(120px,min(72vw,calc((100vh - 400px) * .714)));}',
+    '@supports(height:100dvh){.ipw{--w:max(120px,min(80vw,calc((100dvh - 310px) * .714)));}}',
+    '.ipw.rdy{--w:max(120px,min(92vw,calc((100vh - 290px) * .714)));}',
+    '.ipw.shw{--w:max(120px,min(96vw,calc((100vh - 190px) * .714)));padding:10px 0;}',
+    '@supports(height:100dvh){.ipw.shw{--w:max(120px,min(96vw,calc((100dvh - 190px) * .714)));}.ipw.rdy{--w:max(120px,min(92vw,calc((100dvh - 290px) * .714)));}}',
     '.ipc{position:relative;width:var(--w);aspect-ratio:5/7;border-radius:calc(var(--w) * .06);background:linear-gradient(160deg,#ffffff 0%,#f3efe6 100%);box-shadow:0 14px 40px rgba(0,0,0,.55),inset 0 0 0 calc(var(--w) * .012) #d8d1c0;flex:0 0 auto;overflow:hidden;font-family:Georgia,"Times New Roman","Hiragino Mincho ProN",serif;}',
     '.ipc.mini{--w:64px;}',
     '.ipc.fillc{position:absolute;left:0;top:0;width:100%;height:100%;}',
@@ -241,7 +247,7 @@
    * |z|/|g| が小さい = 画面が垂直に近い(立てている)。大きい = 画面が上(または下)を向いている(寝かせている)。
    * 小さい値(0.40未満)で「立てた」、大きい値(0.55超)で「寝かせた」とし、間は前の状態を保つ(ヒステリシス)。符号は使わないので機種差の影響を受けない。
    * 参考: MDN DeviceMotionEvent https://developer.mozilla.org/en-US/docs/Web/API/DeviceMotionEvent */
-  var TILT = { mode: 'wait', up: false, upAt: 0, z: null, manual: false, card: null, started: false, perm: '', ctx: null, canSend: false, vUp: false, sentWant: null };
+  var TILT = { mode: 'wait', up: false, upAt: 0, z: null, manual: false, card: null, started: false, perm: '', ctx: null, canSend: false, vUp: false, sentWant: null, dn: false, vDown: false, sentDown: null, downAt: 0 };
   function showFace(){ return TILT.mode === 'sensor' ? TILT.up : TILT.manual; }
   function ribbon(anim){ return TILT.swapped ? '<div class="ipribbon"' + (anim ? ' style="animation:' + anim + '"' : '') + '>🔁 交換済</div>' : ''; }
   // 交換の演出(約1.9秒): 今の札が左下へ飛んでいき → 山札から新しい札が右上から滑り込む → 「交換!」バナーと光 → 額に当てているなら、ぺろっと表に返る。
@@ -282,12 +288,13 @@
         else inner.style.transform = '';
       }
     }
-    var m = document.getElementById('ipMsg');
-    if(m) m.innerHTML = face ? '🙌 そのまま額にかざして! 自分では見ない!' : '📱 いまは裏向き。<b>スマホを立てて</b>額にかざすと表になる';
+    var sb = document.getElementById('sSwap');         // 交換ボタンは、机に置いている間だけ
+    if(sb) sb.style.display = ((TILT.mode === 'sensor' && !TILT.up) || (TILT.mode === 'manual' && !TILT.manual)) ? '' : 'none';
+    syncDown();
     var mb = document.getElementById('ipManual');
     if(mb){
       if(TILT.mode === 'manual'){
-        mb.innerHTML = '<button class="btn-ghost" id="ipTog" style="margin-top:6px">' + (TILT.manual ? '🙈 裏向きにする' : '👁 カードを表にする') + '(センサーが使えないため手動)</button>';
+        mb.innerHTML = '<button class="btn-ghost" id="ipTog" style="margin-top:6px">' + (TILT.manual ? '🙈 裏向き' : '👁 表にする') + '</button>';
         var tg = document.getElementById('ipTog'); if(tg) tg.onclick = function(){ TILT.manual = !TILT.manual; paintSlot(); };
       } else mb.innerHTML = '';
     }
@@ -301,9 +308,9 @@
     var up = TILT.up;
     if(TILT.z < 0.40) up = true; else if(TILT.z > 0.55) up = false;
     if(up !== TILT.up || TILT.modeChanged){
-      TILT.up = up; TILT.modeChanged = false; TILT.upAt = up ? Date.now() : 0;
+      TILT.up = up; TILT.modeChanged = false; TILT.upAt = up ? Date.now() : 0; TILT.downAt = up ? 0 : Date.now();
       paintSlot();
-      if(up) setTimeout(syncUp, 1050); else syncUp();      // 立てて1秒たったら「額に当てた」と申告。下ろしたらすぐ申告
+      if(up){ setTimeout(syncUp, 1050); syncDown(); } else { syncUp(); setTimeout(syncDown, 850); }      // 立てて1秒たったら「額に当てた」と申告。下ろしたらすぐ申告
     }
   }
   // 「額に当てている」の申告用。立てた状態が1秒続いたら true(ふらつき・持ち替えで誤検知しないため)
@@ -316,6 +323,17 @@
     var c = TILT.ctx; if(!c || !TILT.canSend) return;
     var want = stableUp();
     if(want !== TILT.vUp && want !== TILT.sentWant){ TILT.sentWant = want; c.send({ t: 'up', v: want }); }
+  }
+  // 「机に置いている」の申告用。寝かせた状態が0.8秒続いたら true
+  function flatStable(){
+    if(TILT.mode === 'sensor') return !TILT.up && TILT.downAt > 0 && Date.now() - TILT.downAt >= 800;
+    if(TILT.mode === 'manual') return !TILT.manual;
+    return false;
+  }
+  function syncDown(){
+    var c = TILT.ctx; if(!c || !TILT.dn) return;
+    var want = flatStable();
+    if(want !== TILT.vDown && want !== TILT.sentDown){ TILT.sentDown = want; c.send({ t: 'down', v: want }); }
   }
   function startTilt(){
     if(TILT.started) return; TILT.started = true;
@@ -365,12 +383,12 @@
     function upUi(){
       var mb = document.getElementById('ipManual2'); if(!mb) return;
       if(TILT.mode === 'manual' && v.myReady){
-        mb.innerHTML = '<button class="btn-ghost" id="ipUpTog" style="margin-top:6px">' + (TILT.manual ? '🙈 下ろした' : '✋ 額に当てた') + '(センサーが使えないため手動)</button>';
+        mb.innerHTML = '<button class="btn-ghost" id="ipUpTog" style="margin-top:6px">' + (TILT.manual ? '🙈 下ろした' : '✋ 額に当てた') + '</button>';
         var t = document.getElementById('ipUpTog'); if(t) t.onclick = function(){ TILT.manual = !TILT.manual; upUi(); syncUp(); };
       } else mb.innerHTML = '';
     }
     function armUp(){      // 描画のたびに、いまの申告状態を覚えて、食い違っていれば送る
-      TILT.ctx = ctx; TILT.canSend = !!v.myReady; TILT.vUp = !!v.myUp; TILT.sentWant = null; startTilt();
+      TILT.ctx = ctx; TILT.dn = false; TILT.canSend = !!v.myReady; TILT.vUp = !!v.myUp; TILT.sentWant = null; startTilt();
       if(v.myReady && TILT.mode === 'wait' && !TILT.waitTimer){
         TILT.waitTimer = setTimeout(function(){ TILT.waitTimer = 0; if(TILT.mode === 'wait'){ TILT.mode = 'manual'; upUi(); } }, 1500);   // センサーの値が来なければ手動
       }
@@ -379,37 +397,33 @@
     if(v.phase === 'ready'){
       var Lr = ctx.local;
       if(Lr.rdy !== 'r' + v.round){ Lr.rdy = 'r' + v.round; TILT.manual = false; }
-      var big = v.myReady ? (v.myUp ? '✅ OK! そのまま動かないで' : '📱 スマホを立てて額に当てて!') : 'まず「準備OK」を押す';
-      root.innerHTML = top + '<div class="ipw rdy">' + cardHtml(null) + '</div>' +
-        '<div class="ipmsg" style="font-size:19px">' + big + '</div>' +
-        '<div class="ipsm">額に当てた人 <b style="font-size:20px;color:var(--text)">' + v.upCount + ' / ' + v.n + '</b> 人<br>全員が当てると、5秒後にカードが表になります</div>' +
-        (v.myReady ? '' : '<div class="ipsm" style="margin-top:6px">「準備OK」でスマホの傾きセンサーを使います(許可を求められたら許可)</div>') +
-        '<div id="ipManual2"></div>' + ctx.waitHtml() +
+      var big = v.myReady ? (v.myUp ? '✅' : '📱 立てて額に!') : '';
+      root.innerHTML = '<div class="ipw rdy">' + cardHtml(null) + '</div>' +
+        '<div class="ipmsg" style="font-size:22px;margin:0">' + big + ' <span style="color:var(--text);font-size:26px">' + v.upCount + ' / ' + v.n + '</span></div>' +
+        '<div id="ipManual2"></div>' +
         '<div class="bottombar">' + (v.myReady ? '' : btn('rReady', '準備OK')) +
-        (ctx.isHost ? btn('rCount', '待たずに始める', 'btn-ghost') : '') + '</div>';
+        (ctx.isHost ? btn('rCount', 'このまま始める', 'btn-ghost') : '') + '</div>';
       if(q('rReady')) q('rReady').onclick = function(){ askMotion(); ctx.send({ t: 'ready' }); ctx.tone(660, 0.08, 'triangle', 0.1); };
       if(q('rCount')) q('rCount').onclick = function(){ askMotion(); ctx.send({ t: 'count' }); };
       armUp();
       return;
     }
 
-    /* ---- カウントダウン(5秒)。全員が額に当てている間だけ進む ---- */
+    /* ---- カウントダウン(3秒)。全員が額に当てている間だけ進む ---- */
     if(v.phase === 'count'){
       var L = ctx.local, rk = 'count:' + v.round + ':' + v.countNo;
       if(L.rkey !== rk){ L.rkey = rk; L.t0 = Date.now(); L.played = false; L.sent = false; }
       var el = (Date.now() - L.t0) / 1000;
       var A = function(name, dur, ease, delay){ return name + ' ' + dur + 's ' + ease + ' ' + (delay - el).toFixed(2) + 's 1 both'; };
-      root.innerHTML = top + '<div class="ipw" style="position:relative;--w:max(120px,min(72vw,calc((100vh - 340px) * .714)))">' + cardHtml(null) +
-        '<div class="ipcount">' + [5, 4, 3, 2, 1].map(function(n, i){ return '<b style="animation:' + A('ipNum', 0.95, 'ease-out', 0.2 + i) + '">' + n + '</b>'; }).join('') + '</div></div>' +
-        '<div class="ipmsg">全員そろった! そのまま額に当てて、見ないで!</div>' +
-        '<div id="ipManual2"></div>' +
-        '<div class="bottombar"><div class="sub-text" style="text-align:center">誰かが下ろすと、最初からやり直しです</div></div>';
+      root.innerHTML = '<div class="ipw" style="position:relative;--w:max(120px,min(92vw,calc((100vh - 240px) * .714)))">' + cardHtml(null) +
+        '<div class="ipcount">' + [3, 2, 1].map(function(n, i){ return '<b style="animation:' + A('ipNum', 0.95, 'ease-out', 0.2 + i) + '">' + n + '</b>'; }).join('') + '</div></div>' +
+        '<div id="ipManual2"></div>';
       if(!L.played){
         L.played = true;
-        [0.2, 1.2, 2.2, 3.2, 4.2].forEach(function(t, i){ setTimeout(function(){ ctx.tone(440 + 50 * i, 0.12, 'triangle', 0.14); if(navigator.vibrate) try{ navigator.vibrate(30); }catch(e){} }, t * 1000); });
+        [0.2, 1.2, 2.2].forEach(function(t, i){ setTimeout(function(){ ctx.tone(440 + 50 * i, 0.12, 'triangle', 0.14); if(navigator.vibrate) try{ navigator.vibrate(30); }catch(e){} }, t * 1000); });
       }
       if(ctx.isHost){
-        ctx.every(function(){ if(!L.sent && (Date.now() - L.t0) / 1000 >= 5.45){ L.sent = true; ctx.send({ t: 'countDone' }); } }, 300);
+        ctx.every(function(){ if(!L.sent && (Date.now() - L.t0) / 1000 >= 3.45){ L.sent = true; ctx.send({ t: 'countDone' }); } }, 300);
       }
       armUp();
       return;
@@ -434,15 +448,14 @@
         Ls.wasSw = nowSw; Ls.swSet = v.swapped.slice();
       }
       TILT.card = v.myCard; TILT.canSend = false; startTilt();
-      var swNames = v.swapped.length ? '🔁 交換した人: ' + v.swapped.map(function(id){ return esc(ctx.nameOf(id)); }).join('・') : '';
       var confirming = Ls.confirmAt && Date.now() - Ls.confirmAt < 3500;
-      var swapBtn = v.mySwapped ? '<div class="sub-text" style="text-align:center;margin-bottom:6px">🔁 交換は使い切りました</div>'
-        : '<button class="' + (confirming ? 'btn-danger' : 'btn-ghost') + '" id="sSwap" style="margin-bottom:8px">' + (confirming ? 'もう一度押すと交換(取り消せません)' : '🔁 カードを交換する(1回だけ)') + '</button>';
+      var swapBtn = v.mySwapped ? '' : '<button class="' + (confirming ? 'btn-danger' : 'btn-ghost') + '" id="sSwap" style="display:none">' + (confirming ? 'もう一度で交換' : '🔁 交換(1回だけ)') + '</button>';
+      var endBtn = ctx.isHost && v.allDown ? btn('sResult', '答え合わせ') : '';
       root.innerHTML = '<div class="ipflash" id="ipFlash"></div>' +
-        '<div class="ipmsg" id="ipMsg" style="margin-top:0"></div>' +
-        '<div class="ipw" id="ipSlot"></div><div id="ipManual"></div>' +
-        '<div class="ipsm" style="min-height:20px">' + swNames + '</div>' +
-        '<div class="bottombar">' + swapBtn + (ctx.isHost ? btn('sResult', '答え合わせ(全員のカードを公開)', 'btn-ghost') : '<div class="sub-text" style="text-align:center">答え合わせはホストが始めます</div>') + '</div>';
+        '<div class="ipw shw" id="ipSlot"></div><div id="ipManual"></div>' +
+        '<div class="bottombar">' + swapBtn + endBtn + '</div>';
+      TILT.ctx = ctx; TILT.dn = true; TILT.vDown = !!v.myDown; TILT.sentDown = null;
+      if(first){ TILT.downAt = TILT.up ? 0 : Date.now(); setTimeout(syncDown, 900); }
       paintSlot();
       if(!Ls.played){
         Ls.played = true;
@@ -455,7 +468,7 @@
       }
       if(q('sSwap')) q('sSwap').onclick = function(){
         if(Ls.confirmAt && Date.now() - Ls.confirmAt < 3500){ Ls.confirmAt = 0; ctx.send({ t: 'swap' }); ctx.tone(440, 0.12, 'sawtooth', 0.1); }
-        else { Ls.confirmAt = Date.now(); ctx.toast('もう一度押すと交換します'); render(root, ctx); }
+        else { Ls.confirmAt = Date.now(); render(root, ctx); }
       };
       if(q('sResult')) q('sResult').onclick = function(){ ctx.send({ t: 'result' }); };
       return;
@@ -468,15 +481,12 @@
       return '<div style="display:flex;align-items:center;gap:12px;background:var(--bg-surface);border:1.5px solid ' + (hi ? 'var(--gold)' : lo ? 'var(--danger)' : 'var(--line)') + ';border-radius:14px;padding:8px 12px;margin-top:8px">' +
         '<div style="flex:0 0 auto">' + cardHtml(v.cards[id], 'mini') + '</div>' +
         '<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">' + ctx.chip(id) +
-        '<span style="font-size:12px;font-weight:900;color:' + (hi ? 'var(--gold)' : lo ? 'var(--danger)' : 'var(--text-muted)') + '">' + (hi ? '👑 いちばん強い' : lo ? 'いちばん弱い' : '') + '</span>' +
-        (v.old && v.old[id] ? '<span style="font-size:11px;color:var(--text-muted)">🔁 交換: ' + miniHtml(v.old[id]) + ' → ' + miniHtml(v.cards[id]) + '</span>' : '') + '</div>' +
+        '<span style="font-size:12px;font-weight:900;color:' + (hi ? 'var(--gold)' : lo ? 'var(--danger)' : 'var(--text-muted)') + '">' + (hi ? '👑' : lo ? '💀' : '') + '</span>' +
+        (v.old && v.old[id] ? '<span style="font-size:11px;color:var(--text-muted)">🔁 ' + miniHtml(v.old[id]) + ' → ' + miniHtml(v.cards[id]) + '</span>' : '') + '</div>' +
         '<span style="margin-left:auto;font-size:15px">' + miniHtml(v.cards[id]) + '</span></div>';
     }).join('');
-    var mine = v.cards[me];
-    h = top + '<div class="card-ui"><div class="big-text" style="font-size:20px">答え合わせ</div>' +
-      '<div class="sub-text">' + (v.allTie ? '全員同じ強さ(引き分け)' : '強い順に並べました。' + (v.aceHigh ? '(Aが最強' : '(Aが最弱') + (v.joker ? '・ジョーカーあり)' : ')')) + '</div></div>' +
-      (mine ? '<div class="sub-text" style="text-align:center;margin-top:8px">あなたのカードは ' + miniHtml(mine) + ' でした</div>' : '') + rows +
-      '<div class="spacer"></div><div class="bottombar">' + (ctx.isHost ? btn('rNext', '次のカードを配る') + btn('rSetup', '設定に戻る', 'btn-ghost') : '<div class="sub-text" style="text-align:center">ホストが次へ進めるのを待っています…</div>') + '</div>';
+    h = '<div class="eyebrow" style="margin-top:6px">' + (v.allTie ? '引き分け' : '強い順') + '</div>' + rows +
+      '<div class="spacer"></div><div class="bottombar">' + (ctx.isHost ? btn('rNext', '次のカード') + btn('rSetup', '設定へ', 'btn-ghost') : '') + '</div>';
     root.innerHTML = h;
     if(q('rNext')) q('rNext').onclick = function(){ ctx.send({ t: 'next' }); };
     if(q('rSetup')) q('rSetup').onclick = function(){ ctx.send({ t: 'resetup' }); };
@@ -486,16 +496,17 @@
   function bot(v, me, rnd){
     if(v.inPart && v.phase === 'ready' && !v.myReady) return { t: 'ready' };
     if(v.inPart && (v.phase === 'ready' || v.phase === 'count') && v.myReady && !v.myUp) return { t: 'up', v: true };
+    if(v.inPart && v.phase === 'show' && !v.myDown) return { t: 'down', v: true };
     if(v.inPart && v.phase === 'show' && !v.mySwapped && rnd(3) === 0) return { t: 'swap' };     // ときどき交換する(動作確認用)
     return null;
   }
 
   NO.register({
     id: 'indian', emoji: '🃏', title: 'インディアンポーカー', accent: '#E5484D', accentInk: '#fff', min: 2, max: 10,
-    tagline: '全員が額にスマホを当てると5秒後にカードが表に。自分のカードは見えない。1回だけ交換もできる。',
+    tagline: '全員が額にスマホを当てると3秒後にカードが表に。自分のカードは見えない。1回だけ交換もできる。',
     rules: [
       'みんなに<b>トランプを1枚ずつ配る</b>。自分のスマホには<b>自分のカードが大きく表示される</b>。',
-      '各自「準備OK」を押して、スマホを立てて<b>額(頭の上)に当てる</b>。<b>全員が当てたことをセンサーで検知</b>すると、<b>5秒のカウントダウン</b>のあとにカードが表になる(途中で誰かが下ろしたらやり直し)。自分は画面を見ない!',
+      '各自「準備OK」を押して、スマホを立てて<b>額(頭の上)に当てる</b>。<b>全員が当てたことをセンサーで検知</b>すると、<b>3秒のカウントダウン</b>のあとにカードが表になる(途中で誰かが下ろしたらやり直し)。自分は画面を見ない!',
       '見えるのは<b>他の人のカードだけ</b>。みんなのカードを見て、自分のカードが勝てそうか読み合う。勝負するか降りるか、飲むのは誰かは<b>みんなで決める</b>(アプリは判定しない)。',
       '<b>スマホが寝ている(画面が上向き)間は裏向き</b>。スマホを立てて額にかざすと表になる(iPhoneはセンサーの許可が必要)。',
       '各自<b>1回だけカードを交換</b>できる(山札の次のカードと入れ替え。どちらも自分には見えない)。交換した人は全員に表示される。',
