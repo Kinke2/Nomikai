@@ -1,6 +1,7 @@
 /*
   最小ユニーク(オンライン版・開発中)
   全員が1〜(人数+2)の数字を秘密で選び、「誰とも被らなかった最小の数字」の人が勝ち、被った人が飲む。
+  誰も被らなかったとき(全員の数字がバラバラ)は、いちばん大きい数字を選んだ人がアウト(飲む)。
   公平性: アプリは選ばれた数字をそのまま集計するだけ(補正・加工なし)。乱数は使わない(数字は各自が選ぶ)。
   参考文献:
     [1] Östling, Wang, Chou, Camerer (2011) "Testing Game Theory in the Field: Swedish LUPI Lottery Games"
@@ -28,7 +29,14 @@
     var winner = null;
     if(winnerNum !== null) ids.forEach(function(id){ if(picks[id] === winnerNum) winner = id; });
     var drinkers = ids.filter(function(id){ return counts[picks[id]] >= 2; });   // 被った人が飲む
-    return { counts: counts, uniques: uniques, winnerNum: winnerNum, winner: winner, drinkers: drinkers };
+    // 誰も被らなかったとき(2人以上)は、いちばん大きい数字を選んだ人がアウト。数字が全員違うので、該当者は必ず1人
+    var noDup = drinkers.length === 0 && ids.length >= 2, maxOut = null;
+    if(noDup){
+      var mx = Math.max.apply(null, ids.map(function(id){ return picks[id]; }));
+      ids.forEach(function(id){ if(picks[id] === mx) maxOut = id; });
+      drinkers = [maxOut];
+    }
+    return { counts: counts, uniques: uniques, winnerNum: winnerNum, winner: winner, drinkers: drinkers, noDup: noDup, maxOut: maxOut };
   }
 
   function newState(players, rnd){
@@ -72,7 +80,7 @@
   function view(G, pid){
     var v = { phase: G.phase, round: G.round, N: G.N, part: G.part, drinks: G.drinks, wins: G.wins, inPart: inPart(G, pid) };
     if(G.phase === 'pick'){ v.myPick = G.picks[pid] || null; v.picked = Object.keys(G.picks); }
-    else { v.picks = G.finalPicks; v.counts = G.res.counts; v.uniques = G.res.uniques; v.winner = G.res.winner; v.winnerNum = G.res.winnerNum; v.drinkers = G.res.drinkers; }
+    else { v.picks = G.finalPicks; v.counts = G.res.counts; v.uniques = G.res.uniques; v.winner = G.res.winner; v.winnerNum = G.res.winnerNum; v.drinkers = G.res.drinkers; v.noDup = G.res.noDup; v.maxOut = G.res.maxOut; }
     return v;
   }
   var game = { newState: newState, act: act, view: view, waiting: waiting, force: force, sync: maybeAdvance };
@@ -98,21 +106,21 @@
         cells += '<button data-n="' + i + '" style="aspect-ratio:1;border-radius:14px;font-size:26px;font-weight:900;border:2px solid ' + (sel ? 'var(--accent)' : 'var(--line)') + ';background:' + (sel ? 'rgba(79,195,217,.16)' : 'var(--bg-surface)') + ';color:' + (sel ? 'var(--accent)' : 'var(--text)') + '">' + i + '</button>';
       }
       h = top + '<div class="card-ui"><div class="big-text" style="font-size:19px">誰とも被らない、いちばん小さい数字を選べ</div>' +
-        '<div class="sub-text">1〜' + v.N + ' から1つ。<b>誰とも被らなかった数字のうち最小</b>を選んだ人が勝ち。被った人は飲む。</div></div>' +
+        '<div class="sub-text">1〜' + v.N + ' から1つ。<b>誰とも被らなかった数字のうち最小</b>を選んだ人が勝ち。被った人は飲む。<b>誰も被らなかったら、いちばん大きい数字の人が飲む。</b></div></div>' +
         '<div style="display:grid;grid-template-columns:repeat(' + (v.N <= 6 ? 3 : 4) + ',1fr);gap:10px;margin-top:14px">' + cells + '</div>' +
         '<div class="waitbar">' + (v.picked.length ? '選択済み: ' + v.picked.map(function(id){ return esc(ctx.nameOf(id)); }).join('・') : '') + '</div>' +
         ctx.waitHtml() + '<div class="spacer"></div><div class="bottombar">' + btn('bPick', v.myPick ? '数字を変更する' : 'この数字に決定') + '</div>';
     } else {
       var order = Object.keys(v.picks).sort(function(a, b){ return v.picks[a] - v.picks[b]; });
       var rows = order.map(function(id){
-        var n = v.picks[id], dup = v.counts[n] >= 2, win = (id === v.winner);
-        return '<div style="display:flex;align-items:center;gap:10px;background:var(--bg-surface);border:1.5px solid ' + (win ? 'var(--gold)' : dup ? 'var(--danger)' : 'var(--line)') + ';border-radius:14px;padding:10px 12px;margin-top:8px">' +
+        var n = v.picks[id], dup = v.counts[n] >= 2, win = (id === v.winner), out = (id === v.maxOut);
+        return '<div style="display:flex;align-items:center;gap:10px;background:var(--bg-surface);border:1.5px solid ' + (win ? 'var(--gold)' : (dup || out) ? 'var(--danger)' : 'var(--line)') + ';border-radius:14px;padding:10px 12px;margin-top:8px">' +
           '<span style="font-size:26px;font-weight:900;width:34px;text-align:center;color:' + (win ? 'var(--gold)' : 'var(--text)') + '">' + n + '</span>' + ctx.chip(id) +
-          '<span style="margin-left:auto;font-size:12px;font-weight:900;color:' + (win ? 'var(--gold)' : dup ? 'var(--danger)' : 'var(--safe)') + '">' + (win ? '👑 勝ち' : dup ? '被り → 飲む' : 'ユニーク') + '</span></div>';
+          '<span style="margin-left:auto;font-size:12px;font-weight:900;color:' + (win ? 'var(--gold)' : (dup || out) ? 'var(--danger)' : 'var(--safe)') + '">' + (win && out ? '👑 勝ち / 最大 → 飲む' : win ? '👑 勝ち' : dup ? '被り → 飲む' : out ? '最大 → 飲む' : 'ユニーク') + '</span></div>';
       }).join('');
       h = top + '<div class="card-ui"><div class="big-text" style="color:' + (v.winner ? 'var(--gold)' : 'var(--danger)') + '">' +
         (v.winner ? '勝者: ' + esc(ctx.nameOf(v.winner)) + '(' + v.winnerNum + ')' : '全員被り。勝者なし') + '</div>' +
-        '<div class="sub-text">飲むのは: ' + (v.drinkers.length ? v.drinkers.map(function(id){ return esc(ctx.nameOf(id)); }).join('・') : 'なし') + '</div></div>' +
+        '<div class="sub-text">' + (v.noDup ? '誰も被らなかったので、いちばん大きい数字の人がアウト。<br>' : '') + '飲むのは: ' + (v.drinkers.length ? v.drinkers.map(function(id){ return esc(ctx.nameOf(id)); }).join('・') : 'なし') + '</div></div>' +
         '<div class="section-label">全員の数字</div>' + rows + board() + '<div class="spacer"></div><div class="bottombar">' +
         (ctx.isHost ? btn('bNext', '次のラウンドへ') : '<div class="sub-text" style="text-align:center">ホストが次へ進めるのを待っています…</div>') + '</div>';
     }
@@ -135,11 +143,12 @@
 
   NO.register({
     id: 'lupi', emoji: '🔢', title: '最小ユニーク', accent: '#E8C24A', accentInk: '#2B2108', min: 3, max: 8,
-    tagline: '誰とも被らない、いちばん小さい数字を選んだ人が勝ち。被った人は飲む。',
+    tagline: '誰とも被らない、いちばん小さい数字を選んだ人が勝ち。被った人は飲む。誰も被らなければ最大の人が飲む。',
     rules: [
       '全員が <b>1〜(人数+2)</b> の数字を、他の人に見えないように1つ選ぶ。',
       '全員が選び終わったら一斉に公開。<b>誰とも被らなかった数字のうち、いちばん小さい数字</b>を選んだ人が勝ち。',
       '<b>数字が他の人と被った人は飲む。</b>誰とも被らなかった人は安全(勝ちは最小の1人だけ)。',
+      '<b>誰も被らなかったとき</b>(全員の数字がバラバラ)は、<b>いちばん大きい数字を選んだ人がアウト</b>で飲む。',
       '全員が被ったら勝者なしで、全員飲む。'
     ],
     game: game, render: render

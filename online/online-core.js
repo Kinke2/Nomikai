@@ -146,6 +146,12 @@
     '.topbar.on{display:flex;}.topbar .rc{font-weight:900;color:var(--text);letter-spacing:.12em;}.topbar .grow{flex:1;}',
     '.topbar button{background:var(--bg-raised);color:var(--text-muted);border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-size:12px;font-weight:700;}',
     '.waitbar{font-size:12px;color:var(--text-muted);text-align:center;margin-top:12px;line-height:1.7;min-height:20px;}',
+    '.off-overlay{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;background:#14121A;}',
+    '.off-bar{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg-surface);border-bottom:1px solid var(--line);font-size:12px;color:var(--text-muted);}',
+    '.off-bar button{background:var(--bg-raised);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:13px;font-weight:700;flex-shrink:0;}',
+    '.off-t{flex:1;text-align:center;font-weight:900;color:var(--text);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}',
+    '.off-overlay iframe{flex:1;width:100%;border:0;background:#14121A;}',
+    '.off-banner{margin-top:14px;padding:11px 14px;border-radius:12px;background:rgba(232,194,74,.12);border:1px solid rgba(232,194,74,.4);color:var(--gold);font-size:13px;font-weight:700;line-height:1.6;}',
     '.menu{position:absolute;right:10px;top:46px;z-index:20;background:var(--bg-raised);border:1px solid var(--line);border-radius:12px;padding:6px;display:none;min-width:180px;box-shadow:0 10px 26px rgba(0,0,0,.5);}',
     '.menu.on{display:block;}.menu button{display:block;width:100%;text-align:left;background:transparent;color:var(--text);padding:11px 12px;font-size:13.5px;font-weight:700;border-radius:8px;}',
     '.menu button:disabled{opacity:.35;}',
@@ -443,7 +449,7 @@
       var H = S.H, players = hostPublicPlayers();
       var gd = H.gameId ? REGISTRY[H.gameId] : null;
       if(H.phase === 'lobby'){
-        H.players.forEach(function(p){ hostSend(p.id, { t: 'lobby', code: H.code, players: players, me: p.id, last: S.lastGame }); });
+        H.players.forEach(function(p){ hostSend(p.id, { t: 'lobby', code: H.code, players: players, me: p.id, last: S.lastGame, off: H.off || null }); });
       } else if(H.phase === 'rules'){
         H.players.forEach(function(p){ hostSend(p.id, { t: 'rules', game: H.gameId, players: players, me: p.id }); });
       } else {
@@ -586,7 +592,7 @@
     /* ---- 共通の受信(ホスト自身の表示にも使う) ---- */
     function localReceive(msg){
       if(msg.t === 'lobby'){
-        S.players = msg.players; S.me = msg.me; S.code = msg.code; S.waiting = []; S.gameId = null;
+        S.players = msg.players; S.me = msg.me; S.code = msg.code; S.waiting = []; S.gameId = null; S.off = msg.off || null;
         if(msg.last !== undefined && S.role !== 'host') S.lastGame = msg.last;
         if(!S.link) S.link = global.location.origin + global.location.pathname + '?room=' + msg.code;
         S.lastKey = ''; S.local = {}; clearTickers(); setAccent();
@@ -637,8 +643,17 @@
           '<span class="gp">' + d.min + '〜' + d.max + '人' + (why ? ' / ' + why : '') + '</span></span>' +
           (isHost && ok ? '<span class="gc">›</span>' : '') + '</button>';
       }).join('');
+      var offCards = '';
+      if(isHost){
+        offCards = offlineList().map(function(g){
+          var ac = g.accent || '#4FC3D9';
+          return '<button class="gcard" data-off="' + esc(g.id) + '" style="--gc:' + ac + '"><span class="gi" style="background:' + hexA(ac, 0.16) + ';color:' + ac + '">' + (g.emoji || '🎲') + '</span>' +
+            '<span class="gt"><b>' + esc(g.title) + '</b><span class="gs">' + esc(g.tagline || '') + '</span></span><span class="gc">›</span></button>';
+        }).join('');
+      }
       $('c-lobby').innerHTML =
-        '<div class="eyebrow">ロビー</div><h2 class="title" style="font-size:22px">オンライン ロビー<span class="badge-dev">開発中</span></h2>' +
+        (S.off ? '<div class="off-banner">🍺 ホストが「' + esc(S.off) + '」(オフライン版)を遊んでいます。ルームはそのままなので、そのままお待ちください。</div>' : '') +
+        '<div class="eyebrow" style="margin-top:' + (S.off ? '14px' : '0') + '">ロビー</div><h2 class="title" style="font-size:22px">オンライン ロビー<span class="badge-dev">開発中</span></h2>' +
         '<div class="sub-text" style="margin-top:6px">QRコードを読み取る/部屋コードを入力して参加。全員そろったらホストがゲームを選ぶ。</div>' +
         '<div class="qr" id="qrBox">' + (qr || '<span style="color:#333;font-size:12px;text-align:center;padding:10px">QRを表示できませんでした。下のコードかリンクを共有してください。</span>') + '</div>' +
         '<div class="code" id="roomCode">' + esc(S.code) + '</div>' +
@@ -647,14 +662,38 @@
         '<div class="section-label">参加者(' + players.length + '/' + HUB_MAX + '人)</div><div class="plist" id="plist">' + plist + '</div>' +
         '<div class="section-label">' + (isHost ? 'ゲームを選ぶ' : 'ゲーム一覧(ホストが選びます)') + '</div>' +
         '<div class="glist" id="glist">' + cards + '</div>' +
+        (isHost && offCards ? '<div class="section-label">オフライン版のゲームを遊ぶ(ホストの端末で遊ぶ。ルームはそのまま維持)</div><div class="glist" id="offlist">' + offCards + '</div>' +
+          '<div class="sub-text">遊んでいる間も、みんなの参加は切れません。画面上の「← ルームに戻る」でロビーに戻れます。</div>' : '') +
         (S.lastGame ? '<div class="sub-text" style="text-align:center">さっき遊んだゲーム: ' + esc(S.lastGame) + '</div>' : '') +
         '<div style="height:18px"></div>';
       $('copyLink').onclick = function(){
         try{ global.navigator.clipboard.writeText(S.link); toast('リンクをコピーしました'); }catch(e){ toast('コピーできませんでした。リンクを長押しでコピーしてください'); }
       };
       if(isHost){
-        $('c-lobby').querySelectorAll('.gcard').forEach(function(b){ b.onclick = function(){ hostSelectGame(b.dataset.g); }; });
+        $('c-lobby').querySelectorAll('.gcard[data-g]').forEach(function(b){ b.onclick = function(){ hostSelectGame(b.dataset.g); }; });
+        $('c-lobby').querySelectorAll('.gcard[data-off]').forEach(function(b){ b.onclick = function(){ hostOpenOffline(b.dataset.off); }; });
       }
+    }
+
+    /* ---- オフライン版のゲーム(ホストの端末だけで遊ぶ) ----
+     * ロビーのページは開いたままで、オフライン版のゲームを全面表示の枠(iframe)の中で開く。
+     * ページを移動しないので、ホストが持つ部屋の状態もみんなとの接続も維持される。 */
+    function offlineList(){ return (global.GAMES || []).filter(function(g){ return g && g.file; }); }
+    function hostOpenOffline(id){
+      var H = S.H; if(!H || H.phase !== 'lobby' || H.off || document.getElementById('offOverlay')) return;
+      var g = offlineList().filter(function(x){ return x.id === id; })[0]; if(!g) return;
+      var url = new global.URL('../' + g.file, global.location.href).href;     // online/ の1つ上が、ゲーム一覧(games.js)と同じ階層
+      H.off = g.title; hostBroadcast();
+      var ov = document.createElement('div'); ov.id = 'offOverlay'; ov.className = 'off-overlay';
+      ov.innerHTML = '<div class="off-bar"><button id="offBack">← ルームに戻る</button><span class="off-t">' + esc(g.title) + '</span><span>ROOM ' + esc(S.code) + '</span></div><iframe id="offFrame" title="' + esc(g.title) + '"></iframe>';
+      document.body.appendChild(ov);
+      $('offFrame').src = url;
+      $('offBack').onclick = hostCloseOffline;
+    }
+    function hostCloseOffline(){
+      var ov = document.getElementById('offOverlay');
+      if(ov){ var f = ov.querySelector('iframe'); if(f) f.src = 'about:blank'; ov.remove(); }   // ゲームの音やタイマーも止める
+      if(S.H){ S.H.off = null; hostBroadcast(); }
     }
 
     /* ---- ルール確認 ---- */
@@ -741,6 +780,7 @@
 
     function cleanup(){
       clearTickers();
+      var ovx = document.getElementById('offOverlay'); if(ovx) ovx.remove();
       if(S.role === 'host' && S.H && S.H.tr){ try{ S.H.tr.close(); }catch(e){} }
       if(S.role === 'client' && S.conn){ var c = S.conn; S.role = null; try{ c.close(); }catch(e){} }
       S.role = null; S.H = null; S.conn = null; S.mode = 'entry'; S.lastKey = ''; S.local = {}; S.players = []; S.gameId = null;
