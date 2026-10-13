@@ -182,9 +182,12 @@
 
   var CSS_ID = 'indian-css';
   var CSS = [
-    '.ipw{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1 1 auto;min-height:0;padding:6px 0;}',
-    '.ipc{--w:min(86vw,54vh);position:relative;width:var(--w);aspect-ratio:5/7;border-radius:calc(var(--w) * .06);background:linear-gradient(160deg,#ffffff 0%,#f3efe6 100%);box-shadow:0 14px 40px rgba(0,0,0,.55),inset 0 0 0 calc(var(--w) * .012) #d8d1c0;flex:0 0 auto;overflow:hidden;font-family:Georgia,"Times New Roman","Hiragino Mincho ProN",serif;}',
+    '.ipw{--w:max(120px,min(80vw,calc((100vh - 310px) * .714)));display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1 1 auto;min-height:0;padding:14px 0;overflow:hidden;}',
+    '@supports(height:100dvh){.ipw{--w:max(120px,min(80vw,calc((100dvh - 310px) * .714)));}.ipw.rdy{--w:max(120px,min(72vw,calc((100dvh - 400px) * .714)));}}',
+    '.ipw.rdy{--w:max(120px,min(72vw,calc((100vh - 400px) * .714)));}',
+    '.ipc{position:relative;width:var(--w);aspect-ratio:5/7;border-radius:calc(var(--w) * .06);background:linear-gradient(160deg,#ffffff 0%,#f3efe6 100%);box-shadow:0 14px 40px rgba(0,0,0,.55),inset 0 0 0 calc(var(--w) * .012) #d8d1c0;flex:0 0 auto;overflow:hidden;font-family:Georgia,"Times New Roman","Hiragino Mincho ProN",serif;}',
     '.ipc.mini{--w:64px;}',
+    '.ipc.fillc{position:absolute;left:0;top:0;width:100%;height:100%;}',
     '.ci{position:absolute;display:flex;flex-direction:column;align-items:center;line-height:1;}',
     '.ci b{font-size:calc(var(--w) * .21);font-weight:900;letter-spacing:-.04em;}.ci span{font-size:calc(var(--w) * .17);margin-top:calc(var(--w) * .01);}',
     '.ci.tl{left:calc(var(--w) * .05);top:calc(var(--w) * .04);}.ci.br{right:calc(var(--w) * .05);bottom:calc(var(--w) * .04);}',
@@ -195,6 +198,21 @@
     '.jt{position:absolute;left:0;right:0;bottom:16%;text-align:center;font-size:calc(var(--w) * .1);font-weight:900;letter-spacing:.2em;}',
     '.ipc.back{background:repeating-linear-gradient(45deg,#7c1423 0 12px,#5e0f1b 12px 24px);box-shadow:0 14px 40px rgba(0,0,0,.55),inset 0 0 0 calc(var(--w) * .035) #f3efe6;display:flex;align-items:center;justify-content:center;}',
     '.ipc.back .bk{font-size:calc(var(--w) * .4);opacity:.9;}',
+    '.ipf{position:relative;width:var(--w);aspect-ratio:5/7;perspective:1100px;flex:0 0 auto;}',
+    '.ipf>.ipc,.ipfi>.ipc{position:absolute;left:0;top:0;width:100%;height:100%;backface-visibility:hidden;-webkit-backface-visibility:hidden;}',
+    '.ipfi{position:absolute;inset:0;transform-style:preserve-3d;transform-origin:50% 55%;}',
+    '.ipfi.f{transform:rotateY(180deg);}.ipfi>.ipc.fr{transform:rotateY(180deg);}',
+    '.ipfi.pl{animation:ipPeel .75s cubic-bezier(.3,.7,.3,1) both;}.ipfi.un{animation:ipUnpeel .6s ease-in-out both;}',
+    '.ipribbon{position:absolute;left:50%;top:-13px;transform:translateX(-50%);z-index:5;background:linear-gradient(180deg,#ffd98a,#f0a93a);color:#3a2300;font-weight:900;font-size:13px;padding:3px 14px;border-radius:999px;box-shadow:0 4px 12px rgba(0,0,0,.5);white-space:nowrap;}',
+    '.ipswb{position:absolute;left:50%;top:50%;z-index:6;transform:translate(-50%,-50%);font-size:min(9vw,34px);font-weight:900;color:#fff;background:rgba(229,72,77,.92);padding:8px 22px;border-radius:14px;white-space:nowrap;box-shadow:0 8px 30px rgba(0,0,0,.6);opacity:0;pointer-events:none;}',
+    '.ipglow{position:absolute;inset:-6px;border-radius:14px;box-shadow:0 0 0 3px #ffd98a,0 0 36px 8px rgba(255,200,90,.85);opacity:0;pointer-events:none;z-index:4;}',
+    '@keyframes ipPeel{0%{transform:rotateY(0);}28%{transform:rotateY(-62deg) rotateX(10deg) translateY(-7%) scale(1.06);}100%{transform:rotateY(-180deg);}}',
+    '@keyframes ipUnpeel{0%{transform:rotateY(-180deg);}100%{transform:rotateY(0);}}',
+    '@keyframes ipOut{0%{transform:none;opacity:1;}100%{transform:translate(-135%,40%) rotate(-28deg) scale(.8);opacity:0;}}',
+    '@keyframes ipIn{0%{transform:translate(135%,-45%) rotate(24deg) scale(.7);opacity:0;}15%{opacity:1;}70%{transform:translate(0,0) rotate(-2deg) scale(1.04);opacity:1;}100%{transform:none;opacity:1;}}',
+    '@keyframes ipBan{0%{opacity:0;transform:translate(-50%,-50%) scale(.4);}20%{opacity:1;transform:translate(-50%,-50%) scale(1.12);}35%{transform:translate(-50%,-50%) scale(1);}80%{opacity:1;}100%{opacity:0;transform:translate(-50%,-50%) scale(1);}}',
+    '@keyframes ipGlow{0%{opacity:0;}25%{opacity:1;}100%{opacity:0;}}',
+    '@keyframes ipRib{0%{opacity:0;transform:translateX(-50%) translateY(-14px) scale(.6);}100%{opacity:1;transform:translateX(-50%);}}',
     '@keyframes ipFlip{0%{transform:rotateY(90deg) scale(.9);}60%{transform:rotateY(-8deg) scale(1.04);}100%{transform:rotateY(0) scale(1);}}',
     '@keyframes ipNum{0%{transform:scale(2.2);opacity:0;}30%{transform:scale(1);opacity:1;}85%{transform:scale(.95);opacity:1;}100%{transform:scale(.6);opacity:0;}}',
     '@keyframes ipFlash{0%{opacity:.9;}100%{opacity:0;}}',
@@ -225,12 +243,44 @@
    * 参考: MDN DeviceMotionEvent https://developer.mozilla.org/en-US/docs/Web/API/DeviceMotionEvent */
   var TILT = { mode: 'wait', up: false, upAt: 0, z: null, manual: false, card: null, started: false, perm: '', ctx: null, canSend: false, vUp: false, sentWant: null };
   function showFace(){ return TILT.mode === 'sensor' ? TILT.up : TILT.manual; }
+  function ribbon(anim){ return TILT.swapped ? '<div class="ipribbon"' + (anim ? ' style="animation:' + anim + '"' : '') + '>🔁 交換済</div>' : ''; }
+  // 交換の演出(約1.9秒): 今の札が左下へ飛んでいき → 山札から新しい札が右上から滑り込む → 「交換!」バナーと光 → 額に当てているなら、ぺろっと表に返る。
+  // 再描画されても途中から続けられるよう、経過時間ぶん animation-delay を負にずらす。札の中身は裏向きか、すでに他人から見えている札だけを使う(自分の札は見せない)
+  var SW_MS = 1950;
+  function stageHtml(face, el){
+    var d = function(t){ return (t - el).toFixed(2) + 's'; };
+    var oldC = face && TILT.prev ? cardHtml(TILT.prev) : cardHtml(null);
+    if(face && TILT.prev) oldC = cardHtml(TILT.prev);
+    return '<div class="ipf">' +
+      '<div style="position:absolute;inset:0;animation:ipOut .55s ease-in ' + d(0) + ' both">' + oldC.replace('class="ipc', 'class="ipc fillc') + '</div>' +
+      '<div style="position:absolute;inset:0;animation:ipIn .62s cubic-bezier(.2,.9,.3,1) ' + d(0.4) + ' both"><div class="ipfi' + '" style="' + (face ? 'animation:ipPeel .75s cubic-bezier(.3,.7,.3,1) ' + d(1.15) + ' both' : '') + '">' +
+        cardHtml(null) + cardHtml(TILT.card, 'fr') + '</div></div>' +
+      '<div class="ipglow" style="animation:ipGlow .9s ease-out ' + d(0.95) + ' both"></div>' +
+      '<div class="ipswb" style="animation:ipBan 1.25s ease-out ' + d(0.8) + ' both">🔁 交換!</div>' +
+      ribbon('ipRib .4s ease-out ' + d(1.3) + ' both') + '</div>';
+  }
   function paintSlot(){
     var slot = document.getElementById('ipSlot'); if(!slot || !TILT.card) return;
-    var face = showFace(), key = (face ? 'f' : 'b') + TILT.card.r + '-' + TILT.card.s;
-    if(slot.dataset.key !== key){
-      slot.dataset.key = key;
-      slot.innerHTML = face ? cardHtml(TILT.card, '', 'animation:ipFlip .5s ease-out both') : cardHtml(null);
+    var face = showFace(), cardKey = TILT.card.r + '-' + TILT.card.s + (TILT.swapped ? 's' : '');
+    var el = TILT.swAt ? Date.now() - TILT.swAt : 1e9;
+    if(el < SW_MS){
+      var sk = 'sw' + TILT.swAt;
+      if(slot.dataset.key !== sk){
+        slot.dataset.key = sk; slot.dataset.face = '';
+        slot.innerHTML = stageHtml(TILT.swFace, el / 1000);
+        clearTimeout(TILT.swT); TILT.swT = setTimeout(paintSlot, SW_MS - el + 30);
+      }
+    } else {
+      var inner = slot.querySelector('.ipfi'), same = inner && slot.dataset.key === cardKey;
+      if(!same){
+        slot.dataset.key = cardKey; slot.dataset.face = face ? '1' : '0';
+        slot.innerHTML = '<div class="ipf"><div class="ipfi' + (face ? ' f' : '') + '">' + cardHtml(null) + cardHtml(TILT.card, 'fr') + '</div>' + ribbon() + '</div>';
+      } else if(slot.dataset.face !== (face ? '1' : '0')){        // 表⇄裏は、ぺろっと返す
+        slot.dataset.face = face ? '1' : '0';
+        inner.className = 'ipfi ' + (face ? 'f pl' : 'un');
+        if(!face) inner.style.transform = 'rotateY(0)';
+        else inner.style.transform = '';
+      }
     }
     var m = document.getElementById('ipMsg');
     if(m) m.innerHTML = face ? '🙌 そのまま額にかざして! 自分では見ない!' : '📱 いまは裏向き。<b>スマホを立てて</b>額にかざすと表になる';
@@ -330,7 +380,7 @@
       var Lr = ctx.local;
       if(Lr.rdy !== 'r' + v.round){ Lr.rdy = 'r' + v.round; TILT.manual = false; }
       var big = v.myReady ? (v.myUp ? '✅ OK! そのまま動かないで' : '📱 スマホを立てて額に当てて!') : 'まず「準備OK」を押す';
-      root.innerHTML = top + '<div class="ipw">' + cardHtml(null) + '</div>' +
+      root.innerHTML = top + '<div class="ipw rdy">' + cardHtml(null) + '</div>' +
         '<div class="ipmsg" style="font-size:19px">' + big + '</div>' +
         '<div class="ipsm">額に当てた人 <b style="font-size:20px;color:var(--text)">' + v.upCount + ' / ' + v.n + '</b> 人<br>全員が当てると、5秒後にカードが表になります</div>' +
         (v.myReady ? '' : '<div class="ipsm" style="margin-top:6px">「準備OK」でスマホの傾きセンサーを使います(許可を求められたら許可)</div>') +
@@ -349,7 +399,7 @@
       if(L.rkey !== rk){ L.rkey = rk; L.t0 = Date.now(); L.played = false; L.sent = false; }
       var el = (Date.now() - L.t0) / 1000;
       var A = function(name, dur, ease, delay){ return name + ' ' + dur + 's ' + ease + ' ' + (delay - el).toFixed(2) + 's 1 both'; };
-      root.innerHTML = top + '<div class="ipw" style="position:relative">' + cardHtml(null) +
+      root.innerHTML = top + '<div class="ipw" style="position:relative;--w:max(120px,min(72vw,calc((100vh - 340px) * .714)))">' + cardHtml(null) +
         '<div class="ipcount">' + [5, 4, 3, 2, 1].map(function(n, i){ return '<b style="animation:' + A('ipNum', 0.95, 'ease-out', 0.2 + i) + '">' + n + '</b>'; }).join('') + '</div></div>' +
         '<div class="ipmsg">全員そろった! そのまま額に当てて、見ないで!</div>' +
         '<div id="ipManual2"></div>' +
@@ -369,6 +419,20 @@
     if(v.phase === 'show'){
       var Ls = ctx.local, sk = 'show:' + v.round;
       var first = Ls.skey !== sk; if(first){ Ls.skey = sk; Ls.t0 = Date.now(); Ls.played = false; Ls.confirmAt = 0; TILT.manual = false; TILT.modeChanged = true; }
+      var nowSw = !!v.mySwapped;
+      if(first){ Ls.wasSw = nowSw; Ls.swSet = v.swapped.slice(); TILT.swAt = 0; TILT.prev = null; TILT.swapped = nowSw; }
+      else {
+        if(nowSw && !Ls.wasSw){        // 自分が交換した
+          TILT.prev = TILT.card; TILT.swFace = showFace(); TILT.swAt = Date.now(); TILT.swapped = true;
+          ctx.tone(300, 0.1, 'sawtooth', 0.1); [520, 700, 940].forEach(function(f, i){ setTimeout(function(){ ctx.tone(f, 0.14, 'triangle', 0.12); }, 450 + i * 110); });
+          var sf2 = ctx.sfx && ctx.sfx(); if(sf2) whoosh(sf2);
+          if(navigator.vibrate) try{ navigator.vibrate([40, 60, 40, 60, 80]); }catch(e){}
+        }
+        v.swapped.forEach(function(id){          // 他の人が交換したら知らせる
+          if(id !== me && Ls.swSet.indexOf(id) < 0){ ctx.toast('🔁 ' + ctx.nameOf(id) + ' がカードを交換した!'); ctx.tone(620, 0.1, 'triangle', 0.1); if(navigator.vibrate) try{ navigator.vibrate(40); }catch(e){} }
+        });
+        Ls.wasSw = nowSw; Ls.swSet = v.swapped.slice();
+      }
       TILT.card = v.myCard; TILT.canSend = false; startTilt();
       var swNames = v.swapped.length ? '🔁 交換した人: ' + v.swapped.map(function(id){ return esc(ctx.nameOf(id)); }).join('・') : '';
       var confirming = Ls.confirmAt && Date.now() - Ls.confirmAt < 3500;
