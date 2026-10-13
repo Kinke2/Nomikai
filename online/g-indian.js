@@ -4,7 +4,8 @@
   それを自分は見ないまま、画面を外に向けて額(頭の上)にかざす → 他の人のカードだけが見える状態で、
   「自分のカードは勝てそうか?」を読み合う(誰が強そうか・降りるか勝負するか は、みんなで口頭で決める)。
   アプリがやるのは「配る・見せる・答え合わせ」だけ。勝敗の細かい判定や点数計算はしない(見た目重視)。
-  進行: 準備(カードは裏向き)→ カウントダウン 3・2・1 → カードが表になる(額にかざす)→ 答え合わせ(全員のカードと強さ順を公開)
+  進行: 準備(カードは裏向き。各自「準備OK」→ スマホを立てて額に当てる)→ 全員が額に当てたことを検知 → 5秒カウントダウン → カードが表になる → 答え合わせ(全員のカードと強さ順を公開)
+          カウントダウン中に誰かがスマホを下ろしたら、待機に戻る(全員がそろうまで始まらない)。
   公平性: 山札は 52枚(+ジョーカー)を crypto.getRandomValues の棄却サンプリング(randInt)+ Fisher–Yates でシャッフルして
           先頭から1人1枚ずつ配るだけ。同じラウンドで同じカードが重なることはない。配り方・強さの扱いにアプリ側の補正は一切ない。
           カードの強さは 2 < 3 < … < 10 < J < Q < K < A < ジョーカー(Aを弱くする設定も選べる)。同じ強さは「同点」と表示する。
@@ -50,7 +51,7 @@
   }
 
   function newState(players, rnd){
-    var G = { players: players, offline: {}, phase: 'setup', joker: false, aceHigh: true, round: 0, part: [], cards: {}, ready: {}, deck: [], dpos: 0, swapped: {}, old: {} };
+    var G = { players: players, offline: {}, phase: 'setup', joker: false, aceHigh: true, round: 0, part: [], cards: {}, ready: {}, up: {}, countNo: 0, forced: false, deck: [], dpos: 0, swapped: {}, old: {} };
     syncSetup(G);
     return G;
   }
@@ -58,10 +59,17 @@
   function deal(G, rnd){
     syncSetup(G);
     var deck = makeDeck(G.joker, rnd);
-    G.cards = {}; G.ready = {}; G.swapped = {}; G.old = {};
+    G.cards = {}; G.ready = {}; G.up = {}; G.swapped = {}; G.old = {};
     G.part.forEach(function(id, i){ G.cards[id] = deck[i]; });      // 先頭から1人1枚(重複なし)
     G.deck = deck; G.dpos = G.part.length;                          // 残りの山札(交換用。host の内部だけが持つ)
     G.round++; G.phase = 'ready';
+  }
+  function startCount(G, forced){ G.phase = 'count'; G.countNo++; G.forced = !!forced; }
+  // 全員(接続中の参加者)が「準備OK」かつ「額に当てている」→ カウントダウン開始。カウント中に誰かが下ろしたら待機に戻る
+  function allUp(G){ var a = activeIds(G); return a.length >= 2 && a.every(function(id){ return G.ready[id] && G.up[id]; }); }
+  function checkStart(G){
+    if(G.phase === 'ready' && allUp(G)) startCount(G, false);
+    else if(G.phase === 'count' && !G.forced && !allUp(G)) G.phase = 'ready';     // ホストが「待たずに始める」を押した場合は、下ろしてもやり直しにしない
   }
   function act(G, pid, a, rnd){
     if(!a || typeof a !== 'object') return { error: '操作が不正です' };
@@ -80,9 +88,13 @@
       case 'ready':
         if(G.phase !== 'ready' || !inPart(G, pid)) return { error: '今は押せません' };
         G.ready[pid] = true; return { ok: true };
-      case 'count':
+      case 'up':      // 「いま額に当てている(スマホが立っている)」の申告。センサーで検知した結果を各自の端末が送る
+        if((G.phase !== 'ready' && G.phase !== 'count') || !inPart(G, pid) || typeof a.v !== 'boolean') return { error: '今は送れません' };
+        if(!G.ready[pid]) return { error: '先に準備OKを押してください' };
+        G.up[pid] = a.v; checkStart(G); return { ok: true };
+      case 'count':     // ホストが待たずに始める(全員がそろわなくても)
         if(!host || G.phase !== 'ready') return { error: '今は始められません' };
-        G.phase = 'count'; return { ok: true };
+        startCount(G, true); return { ok: true };
       case 'countDone':
         if(!host || G.phase !== 'count') return { error: '今は進められません' };
         G.phase = 'show'; return { ok: true };
@@ -105,16 +117,16 @@
     return { error: '未対応の操作' };
   }
   function force(G){
-    if(G.phase === 'ready') G.phase = 'count';
+    if(G.phase === 'ready') startCount(G, true);
     else if(G.phase === 'count') G.phase = 'show';
     else if(G.phase === 'show') G.phase = 'result';
   }
-  function waiting(G){ return G.phase === 'ready' ? activeIds(G).filter(function(id){ return !G.ready[id]; }) : []; }
-  function sync(G){ if(G.phase === 'setup') syncSetup(G); }
+  function waiting(G){ return G.phase === 'ready' ? activeIds(G).filter(function(id){ return !(G.ready[id] && G.up[id]); }) : []; }
+  function sync(G){ if(G.phase === 'setup') syncSetup(G); else if(G.phase === 'ready' || G.phase === 'count') checkStart(G); }
 
   function view(G, pid){
     var v = { phase: G.phase, round: G.round, part: G.part, inPart: inPart(G, pid), joker: G.joker, aceHigh: G.aceHigh };
-    if(G.phase === 'ready'){ v.myReady = !!G.ready[pid]; v.readyCount = Object.keys(G.ready).length; v.n = G.part.length; }
+    if(G.phase === 'ready' || G.phase === 'count'){ v.myReady = !!G.ready[pid]; v.myUp = !!G.up[pid]; v.readyCount = Object.keys(G.ready).length; v.upCount = Object.keys(G.up).filter(function(id){ return G.up[id]; }).length; v.n = G.part.length; v.countNo = G.countNo; }
     if(G.phase === 'show'){ v.myCard = inPart(G, pid) ? G.cards[pid] : null; v.mySwapped = !!G.swapped[pid]; v.swapped = Object.keys(G.swapped); }       // 自分のカードだけ(他人のカードは送らない)
     if(G.phase === 'result'){
       var st = {}, mx = -1, mn = 1e9;
@@ -211,7 +223,7 @@
    * |z|/|g| が小さい = 画面が垂直に近い(立てている)。大きい = 画面が上(または下)を向いている(寝かせている)。
    * 小さい値(0.40未満)で「立てた」、大きい値(0.55超)で「寝かせた」とし、間は前の状態を保つ(ヒステリシス)。符号は使わないので機種差の影響を受けない。
    * 参考: MDN DeviceMotionEvent https://developer.mozilla.org/en-US/docs/Web/API/DeviceMotionEvent */
-  var TILT = { mode: 'wait', up: false, z: null, manual: false, card: null, started: false, perm: '' };
+  var TILT = { mode: 'wait', up: false, upAt: 0, z: null, manual: false, card: null, started: false, perm: '', ctx: null, canSend: false, vUp: false, sentWant: null };
   function showFace(){ return TILT.mode === 'sensor' ? TILT.up : TILT.manual; }
   function paintSlot(){
     var slot = document.getElementById('ipSlot'); if(!slot || !TILT.card) return;
@@ -238,7 +250,22 @@
     TILT.mode = 'sensor'; TILT.z = TILT.z == null ? az : TILT.z * 0.7 + az * 0.3;
     var up = TILT.up;
     if(TILT.z < 0.40) up = true; else if(TILT.z > 0.55) up = false;
-    if(up !== TILT.up || TILT.modeChanged){ TILT.up = up; TILT.modeChanged = false; paintSlot(); }
+    if(up !== TILT.up || TILT.modeChanged){
+      TILT.up = up; TILT.modeChanged = false; TILT.upAt = up ? Date.now() : 0;
+      paintSlot();
+      if(up) setTimeout(syncUp, 1050); else syncUp();      // 立てて1秒たったら「額に当てた」と申告。下ろしたらすぐ申告
+    }
+  }
+  // 「額に当てている」の申告用。立てた状態が1秒続いたら true(ふらつき・持ち替えで誤検知しないため)
+  function stableUp(){
+    if(TILT.mode === 'sensor') return TILT.up && TILT.upAt > 0 && Date.now() - TILT.upAt >= 1000;
+    if(TILT.mode === 'manual') return TILT.manual;
+    return false;
+  }
+  function syncUp(){
+    var c = TILT.ctx; if(!c || !TILT.canSend) return;
+    var want = stableUp();
+    if(want !== TILT.vUp && want !== TILT.sentWant){ TILT.sentWant = want; c.send({ t: 'up', v: want }); }
   }
   function startTilt(){
     if(TILT.started) return; TILT.started = true;
@@ -284,36 +311,57 @@
       return;
     }
 
-    /* ---- 準備(カードは裏向き。見えない) ---- */
+    /* ---- 準備(カードは裏向き。各自「準備OK」→ スマホを立てて額に当てる) ---- */
+    function upUi(){
+      var mb = document.getElementById('ipManual2'); if(!mb) return;
+      if(TILT.mode === 'manual' && v.myReady){
+        mb.innerHTML = '<button class="btn-ghost" id="ipUpTog" style="margin-top:6px">' + (TILT.manual ? '🙈 下ろした' : '✋ 額に当てた') + '(センサーが使えないため手動)</button>';
+        var t = document.getElementById('ipUpTog'); if(t) t.onclick = function(){ TILT.manual = !TILT.manual; upUi(); syncUp(); };
+      } else mb.innerHTML = '';
+    }
+    function armUp(){      // 描画のたびに、いまの申告状態を覚えて、食い違っていれば送る
+      TILT.ctx = ctx; TILT.canSend = !!v.myReady; TILT.vUp = !!v.myUp; TILT.sentWant = null; startTilt();
+      if(v.myReady && TILT.mode === 'wait' && !TILT.waitTimer){
+        TILT.waitTimer = setTimeout(function(){ TILT.waitTimer = 0; if(TILT.mode === 'wait'){ TILT.mode = 'manual'; upUi(); } }, 1500);   // センサーの値が来なければ手動
+      }
+      upUi(); syncUp();
+    }
     if(v.phase === 'ready'){
+      var Lr = ctx.local;
+      if(Lr.rdy !== 'r' + v.round){ Lr.rdy = 'r' + v.round; TILT.manual = false; }
+      var big = v.myReady ? (v.myUp ? '✅ OK! そのまま動かないで' : '📱 スマホを立てて額に当てて!') : 'まず「準備OK」を押す';
       root.innerHTML = top + '<div class="ipw">' + cardHtml(null) + '</div>' +
-        '<div class="ipmsg">' + (v.myReady ? '準備OK! みんなを待っています' : 'スマホを持って、画面を外に向ける準備を') + '</div>' +
-        '<div class="ipsm">準備OK ' + v.readyCount + ' / ' + v.n + '人' + (v.myReady ? '' : '<br>「準備OK」でスマホの傾きセンサーを使います(許可を求められたら許可)') + '</div>' + ctx.waitHtml() +
-        '<div class="bottombar">' + (ctx.isHost
-          ? (v.myReady ? '' : btn('rReady', '準備OK(構えた)', 'btn-ghost')) + btn('rCount', 'カウントダウン開始')
-          : (v.myReady ? '<div class="sub-text" style="text-align:center">ホストがカウントダウンを始めます…</div>' : btn('rReady', '準備OK(構えた)'))) + '</div>';
+        '<div class="ipmsg" style="font-size:19px">' + big + '</div>' +
+        '<div class="ipsm">額に当てた人 <b style="font-size:20px;color:var(--text)">' + v.upCount + ' / ' + v.n + '</b> 人<br>全員が当てると、5秒後にカードが表になります</div>' +
+        (v.myReady ? '' : '<div class="ipsm" style="margin-top:6px">「準備OK」でスマホの傾きセンサーを使います(許可を求められたら許可)</div>') +
+        '<div id="ipManual2"></div>' + ctx.waitHtml() +
+        '<div class="bottombar">' + (v.myReady ? '' : btn('rReady', '準備OK')) +
+        (ctx.isHost ? btn('rCount', '待たずに始める', 'btn-ghost') : '') + '</div>';
       if(q('rReady')) q('rReady').onclick = function(){ askMotion(); ctx.send({ t: 'ready' }); ctx.tone(660, 0.08, 'triangle', 0.1); };
       if(q('rCount')) q('rCount').onclick = function(){ askMotion(); ctx.send({ t: 'count' }); };
+      armUp();
       return;
     }
 
-    /* ---- カウントダウン ---- */
+    /* ---- カウントダウン(5秒)。全員が額に当てている間だけ進む ---- */
     if(v.phase === 'count'){
-      var L = ctx.local, rk = 'count:' + v.round;
+      var L = ctx.local, rk = 'count:' + v.round + ':' + v.countNo;
       if(L.rkey !== rk){ L.rkey = rk; L.t0 = Date.now(); L.played = false; L.sent = false; }
       var el = (Date.now() - L.t0) / 1000;
       var A = function(name, dur, ease, delay){ return name + ' ' + dur + 's ' + ease + ' ' + (delay - el).toFixed(2) + 's 1 both'; };
       root.innerHTML = top + '<div class="ipw" style="position:relative">' + cardHtml(null) +
-        '<div class="ipcount">' + [3, 2, 1].map(function(n, i){ return '<b style="animation:' + A('ipNum', 0.95, 'ease-out', 0.2 + i) + '">' + n + '</b>'; }).join('') + '</div></div>' +
-        '<div class="ipmsg">画面を見ずに、外に向けて額にかざして!</div>' +
-        '<div class="bottombar"><div class="sub-text" style="text-align:center">' + (ctx.isHost ? 'まもなくカードが表になります…' : '見ないで構えて…') + '</div></div>';
+        '<div class="ipcount">' + [5, 4, 3, 2, 1].map(function(n, i){ return '<b style="animation:' + A('ipNum', 0.95, 'ease-out', 0.2 + i) + '">' + n + '</b>'; }).join('') + '</div></div>' +
+        '<div class="ipmsg">全員そろった! そのまま額に当てて、見ないで!</div>' +
+        '<div id="ipManual2"></div>' +
+        '<div class="bottombar"><div class="sub-text" style="text-align:center">誰かが下ろすと、最初からやり直しです</div></div>';
       if(!L.played){
         L.played = true;
-        [0.2, 1.2, 2.2].forEach(function(t, i){ setTimeout(function(){ ctx.tone(520 + 60 * i, 0.12, 'triangle', 0.14); if(navigator.vibrate) try{ navigator.vibrate(30); }catch(e){} }, t * 1000); });
+        [0.2, 1.2, 2.2, 3.2, 4.2].forEach(function(t, i){ setTimeout(function(){ ctx.tone(440 + 50 * i, 0.12, 'triangle', 0.14); if(navigator.vibrate) try{ navigator.vibrate(30); }catch(e){} }, t * 1000); });
       }
       if(ctx.isHost){
-        ctx.every(function(){ if(!L.sent && (Date.now() - L.t0) / 1000 >= 3.45){ L.sent = true; ctx.send({ t: 'countDone' }); } }, 300);
+        ctx.every(function(){ if(!L.sent && (Date.now() - L.t0) / 1000 >= 5.45){ L.sent = true; ctx.send({ t: 'countDone' }); } }, 300);
       }
+      armUp();
       return;
     }
 
@@ -321,7 +369,7 @@
     if(v.phase === 'show'){
       var Ls = ctx.local, sk = 'show:' + v.round;
       var first = Ls.skey !== sk; if(first){ Ls.skey = sk; Ls.t0 = Date.now(); Ls.played = false; Ls.confirmAt = 0; TILT.manual = false; TILT.modeChanged = true; }
-      TILT.card = v.myCard; startTilt();
+      TILT.card = v.myCard; TILT.canSend = false; startTilt();
       var swNames = v.swapped.length ? '🔁 交換した人: ' + v.swapped.map(function(id){ return esc(ctx.nameOf(id)); }).join('・') : '';
       var confirming = Ls.confirmAt && Date.now() - Ls.confirmAt < 3500;
       var swapBtn = v.mySwapped ? '<div class="sub-text" style="text-align:center;margin-bottom:6px">🔁 交換は使い切りました</div>'
@@ -373,16 +421,17 @@
   // 開発中モード用のCPU(「準備OK」を押すだけ)
   function bot(v, me, rnd){
     if(v.inPart && v.phase === 'ready' && !v.myReady) return { t: 'ready' };
+    if(v.inPart && (v.phase === 'ready' || v.phase === 'count') && v.myReady && !v.myUp) return { t: 'up', v: true };
     if(v.inPart && v.phase === 'show' && !v.mySwapped && rnd(3) === 0) return { t: 'swap' };     // ときどき交換する(動作確認用)
     return null;
   }
 
   NO.register({
     id: 'indian', emoji: '🃏', title: 'インディアンポーカー', accent: '#E5484D', accentInk: '#fff', min: 2, max: 10,
-    tagline: '自分のカードは見ずに、スマホを立てて額にかざす。1回だけ交換もできる。',
+    tagline: '全員が額にスマホを当てると5秒後にカードが表に。自分のカードは見えない。1回だけ交換もできる。',
     rules: [
       'みんなに<b>トランプを1枚ずつ配る</b>。自分のスマホには<b>自分のカードが大きく表示される</b>。',
-      'カードが表になったら、<b>自分は画面を見ないで</b>スマホの画面を外に向け、<b>額(頭の上)にかざす</b>。',
+      '各自「準備OK」を押して、スマホを立てて<b>額(頭の上)に当てる</b>。<b>全員が当てたことをセンサーで検知</b>すると、<b>5秒のカウントダウン</b>のあとにカードが表になる(途中で誰かが下ろしたらやり直し)。自分は画面を見ない!',
       '見えるのは<b>他の人のカードだけ</b>。みんなのカードを見て、自分のカードが勝てそうか読み合う。勝負するか降りるか、飲むのは誰かは<b>みんなで決める</b>(アプリは判定しない)。',
       '<b>スマホが寝ている(画面が上向き)間は裏向き</b>。スマホを立てて額にかざすと表になる(iPhoneはセンサーの許可が必要)。',
       '各自<b>1回だけカードを交換</b>できる(山札の次のカードと入れ替え。どちらも自分には見えない)。交換した人は全員に表示される。',
