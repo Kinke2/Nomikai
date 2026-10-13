@@ -722,6 +722,7 @@
         nameOf: function(pid){ var p = S.players.filter(function(x){ return x.id === pid; })[0]; return p ? p.name : '?'; },
         every: function(fn, ms){ var id = setInterval(fn, ms); S.tickers.push(id); fn(); return id; },
         tone: tone, toast: toast, sortList: sortList, root: root,
+        sfx: function(){ var a = audio(); return a ? { ac: a, out: master } : null; },   // 効果音を自作するゲーム用(ミュート中は null)
         waitHtml: function(){
           if(!S.waiting.length) return '<div class="waitbar"></div>';
           var names = S.waiting.map(function(pid){ return ctx.nameOf(pid); }).join('・');
