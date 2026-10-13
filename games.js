@@ -12,8 +12,42 @@
 //   emoji    : カードに表示するアイコン代わりの絵文字
 //   accent   : カードのテーマカラー(そのゲーム自身のHTML内の --accent と合わせると統一感が出る)
 //   file     : games/ からの相対パス
+//
+// ※ メニューには、この配列の並び順どおりに表示される。
 
 window.GAMES = [
+  {
+    id: 'ecohiiki-roulette',
+    title: 'えこひいきルーレット',
+    tagline: '誰か1人だけ当たる確率アップ、誰か1人だけ当たったら2杯。',
+    emoji: '🎯',
+    accent: '#FF6B5B',
+    file: 'games/ecohiiki-roulette.html'
+  },
+  {
+    id: 'chinchiro',
+    title: 'チンチロ',
+    tagline: 'サイコロをお椀に投げ入れて出目を決める。',
+    emoji: '🎲',
+    accent: '#E8C24A',
+    file: 'games/chinchiro.html'
+  },
+  {
+    id: 'mine-babanuki',
+    title: 'マインスイーパ',
+    tagline: 'マスを順にめくる。地雷はたった1つ。引いたら、暗転。',
+    emoji: '🚩',
+    accent: '#5FD0A8',
+    file: 'games/mine-babanuki.html'
+  },
+  {
+    id: 'last-tap',
+    title: '秒数ぴった',
+    tagline: '指を置いて、目標の秒数で離せ。いちばんズレた人が飲む。',
+    emoji: '⏱️',
+    accent: '#8B8FF0',
+    file: 'games/last-tap.html'
+  },
   {
     id: 'five-game',
     title: 'ファイブゲーム',
@@ -23,12 +57,12 @@ window.GAMES = [
     file: 'games/five-game.html'
   },
   {
-    id: 'ecohiiki-roulette',
-    title: 'えこひいきルーレット',
-    tagline: '誰か1人だけ当たる確率アップ、誰か1人だけ当たったら2杯。',
-    emoji: '🎯',
-    accent: '#FF6B5B',
-    file: 'games/ecohiiki-roulette.html'
+    id: 'high-low',
+    title: 'ハイ&ロー',
+    tagline: '次のカードは今より強い?弱い?トランプ1デッキで対戦。',
+    emoji: '🃏',
+    accent: '#C8283C',
+    file: 'games/high-low.html'
   },
   {
     id: 'bomb-tap',
@@ -39,12 +73,36 @@ window.GAMES = [
     file: 'games/bomb-tap.html'
   },
   {
-    id: 'chinchiro',
-    title: 'チンチロ',
-    tagline: 'サイコロをお椀に投げ入れて出目を決める。',
-    emoji: '🎲',
-    accent: '#E8C24A',
-    file: 'games/chinchiro.html'
+    id: 'horse-race',
+    title: '競馬',
+    tagline: '頭数を決めてスタート。ビリになった馬の番号を発表。',
+    emoji: '🐎',
+    accent: '#5BAE6B',
+    file: 'games/horse-race.html'
+  },
+  {
+    id: 'nanja-monja',
+    title: 'なんじゃもんじゃ',
+    tagline: '得体の知れない生物に名付けて、再登場したら早い者勝ち。',
+    emoji: '👾',
+    accent: '#C792EA',
+    file: 'games/nanja-monja.html'
+  },
+  {
+    id: 'kankaku-narabe',
+    title: '感覚ならべ',
+    tagline: 'お題に合う言葉だけで数字を伝えて、小さい順に並ぶ。いちばんズレた人が飲む。',
+    emoji: '📏',
+    accent: '#F17FB1',
+    file: 'games/kankaku-narabe.html'
+  },
+  {
+    id: 'itsuwari-tasuuketsu',
+    title: '偽りの多数決',
+    tagline: 'GO!!の合図で指の本数を出す。「みんなが選びそうな答え」から外れた人が飲む。',
+    emoji: '🗳️',
+    accent: '#4FC3D9',
+    file: 'games/itsuwari-tasuuketsu.html'
   }
 
   // 新しいゲームはこの下に追加していく
@@ -56,4 +114,42 @@ window.GAMES = [
   //   accent: '#XXXXXX',
   //   file: 'games/new-game.html'
   // }
+];
+
+// ------------------------------------------------------------
+// オンライン版(開発中)。各自のスマホで遊ぶ。上の安定版(window.GAMES)とは別枠で、メニューの下段に表示される。
+// ------------------------------------------------------------
+window.ONLINE_GAMES = [
+  {
+    id: 'online-wolf',
+    title: 'ワードウルフ',
+    tagline: '1人だけ違うワードのウルフを探し出せ。各自のスマホにワードが届く。',
+    emoji: '🐺',
+    accent: '#C792EA',
+    file: 'online/wolf.html'
+  },
+  {
+    id: 'online-lupi',
+    title: '最小ユニーク',
+    tagline: '誰とも被らない、いちばん小さい数字を選んだ人が勝ち。被った人は飲む。',
+    emoji: '🔢',
+    accent: '#E8C24A',
+    file: 'online/lupi.html'
+  },
+  {
+    id: 'online-shimei',
+    title: '秘密指名ゲーム',
+    tagline: 'お題に当てはまる人をこっそり指名。最多得票の人が飲む。誰が入れたかは内緒。',
+    emoji: '🫵',
+    accent: '#FF8A5B',
+    file: 'online/shimei.html'
+  },
+  {
+    id: 'online-kankaku',
+    title: '感覚ならべ(オンライン)',
+    tagline: '各自のスマホに秘密の数字。ひとことで伝えて、みんなで小さい順に並べる。',
+    emoji: '📏',
+    accent: '#F17FB1',
+    file: 'online/kankaku.html'
+  }
 ];

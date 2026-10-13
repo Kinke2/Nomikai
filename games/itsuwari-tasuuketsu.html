@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>偽りの多数決</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<!--
+  偽りの多数決 - 飲み会ゲーム
+  ルール: 画面に出た3つの選択肢から、「みんなが選びそうな答え」を予想し、「せーの」で指の本数(1・2・3)で一斉に示す。
+          最多票の答えを出した人は安全、それ以外の人が飲む。最多票が複数あるとき(同数トップ)はノーカウントで、もう一度やる。
+          画面は「お題・選択肢の表示」と「せーの」のカウントダウン(GO!!)だけを担当する。誰が何を出したか・多数派がどれかは、
+          全員の指が見えているので目で判断する(入力・集計・補正は一切ない)。
+  公平性・ノイズ処理について:
+    - お題の順番・選択肢の並びは Fisher-Yates シャッフルで、乱数は crypto.getRandomValues(棄却サンプリングで剰余バイアスを排除)。
+    - アプリは結果に一切関与しない(集計も判定もしない)ので、結果への恣意的な操作・補正が入る余地がない。
+    - 選択肢の並び(A/B/C の位置)は毎回ランダムにして、位置による票の偏りを避ける。
+  参考文献:
+    [1] Keynesian beauty contest(「他人が選びそうなものを予想して選ぶ」ゲームの原型)
+        https://en.wikipedia.org/wiki/Keynesian_beauty_contest
+    [2] Focal point (game theory) / Schelling point(話し合いなしで人が揃って選びやすい選択肢)
+        https://en.wikipedia.org/wiki/Focal_point_(game_theory)
+    [3] Fisher-Yates shuffle
+        https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
+    [4] MDN Crypto.getRandomValues()
+        https://developer.mozilla.org/en-US/docs/Web/API/Crypto/getRandomValues
+    [5] MDN Web Audio API
+        https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API
+    ※ お題は本作のオリジナル。音はWeb Audioで合成(外部音源なし)。
+-->
+<style>
+  :root{
+    --bg-base:#14121A; --bg-surface:#1E1B26; --bg-raised:#282330; --line:#3A3444;
+    --text:#F3F1EE; --text-muted:#9A93A6;
+    --accent:#4FC3D9; --accent-ink:#06222A; --danger:#FF5A45; --gold:#E8C24A; --safe:#5FD0A8;
+    --radius-card:18px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;overscroll-behavior:none;background:var(--bg-base);}
+  body{color:var(--text);font-family:'Zen Kaku Gothic New',sans-serif;-webkit-tap-highlight-color:transparent;overflow:hidden;}
+  h1,h2,h3{margin:0;}
+  button{font-family:inherit;cursor:pointer;border:none;touch-action:manipulation;}
+  button:disabled{opacity:.35;cursor:default;}
+  #app{width:100%;max-width:460px;margin:0 auto;height:100vh;height:100dvh;display:flex;flex-direction:column;position:relative;}
+  .screen{display:none;flex-direction:column;flex:1;min-height:0;padding:26px 22px 0;overflow-y:auto;animation:fadeIn .3s ease;}
+  .screen.active{display:flex;}
+  @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+  .eyebrow{color:var(--text-muted);font-size:12px;letter-spacing:.05em;margin-bottom:8px;}
+  .title{font-size:28px;font-weight:900;}
+  .tagline{color:var(--text-muted);font-size:13.5px;margin-top:12px;line-height:1.8;}
+  .section-label{font-size:12px;color:var(--text-muted);margin:22px 0 10px;}
+  .spacer{flex:1;min-height:12px;}
+  .bottombar{padding:16px 0 calc(16px + env(safe-area-inset-bottom));}
+  .btn-primary{width:100%;background:var(--accent);color:var(--accent-ink);border-radius:14px;padding:16px;font-size:15.5px;font-weight:900;}
+  .btn-ghost{width:100%;background:transparent;color:var(--text-muted);border:1px solid var(--line);border-radius:14px;padding:13px;font-size:13.5px;font-weight:700;margin-top:9px;}
+  .quit{align-self:flex-start;background:transparent;color:var(--text-muted);font-size:12.5px;font-weight:700;padding:4px 0 10px;}
+  .mute{position:absolute;top:14px;right:16px;z-index:5;background:var(--bg-surface);color:var(--text-muted);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:13px;}
+
+  .size-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+  .size-btn{background:var(--bg-surface);color:var(--text);border:1.5px solid var(--line);border-radius:14px;padding:13px 6px;text-align:center;transition:border-color .15s,background .15s;}
+  .size-btn .big{display:block;font-size:20px;font-weight:900;}
+  .size-btn.sel{border-color:var(--accent);background:rgba(79,195,217,.12);}
+  .size-btn.sel .big{color:var(--accent);}
+  .rule-card{background:var(--bg-surface);border:1px solid var(--line);border-radius:var(--radius-card);padding:10px 18px;margin-top:20px;}
+  .rule-row{display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);}
+  .rule-row:last-child{border-bottom:none;}
+  .rule-num{width:22px;height:22px;border-radius:6px;background:var(--bg-raised);color:var(--text-muted);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .rule-text{font-size:13px;line-height:1.6;}
+  .notice{font-size:11px;color:var(--text-muted);margin-top:12px;line-height:1.7;}
+
+  .chip{display:inline-flex;align-items:center;justify-content:center;min-width:44px;height:32px;padding:0 10px;border-radius:10px;color:#14121A;font-weight:900;font-size:14px;}
+  .chip.big{min-width:96px;height:96px;border-radius:50%;font-size:34px;}
+
+  .qcard{background:var(--bg-surface);border:1.5px solid var(--line);border-radius:22px;padding:22px 18px;text-align:center;margin-top:6px;}
+  .qtext{font-size:21px;font-weight:900;line-height:1.5;}
+  .qsub{font-size:12px;color:var(--text-muted);margin-top:8px;line-height:1.6;}
+
+  .handoff{text-align:center;}
+  .handoff .msg{font-size:20px;font-weight:900;margin-top:20px;line-height:1.5;}
+  .handoff .sub{color:var(--text-muted);font-size:13px;margin-top:10px;line-height:1.7;}
+  .progress{display:flex;justify-content:center;gap:6px;margin-top:18px;flex-wrap:wrap;}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--bg-raised);border:1px solid var(--line);}
+  .dot.done{background:var(--accent);border-color:var(--accent);}
+
+  .opts{display:flex;flex-direction:column;gap:12px;margin-top:16px;}
+  .opt{display:flex;align-items:center;gap:14px;text-align:left;width:100%;background:var(--bg-surface);color:var(--text);border:2px solid var(--line);border-radius:16px;padding:18px 16px;font-size:18px;font-weight:900;transition:border-color .12s,background .12s;}
+  .opt .lab{width:34px;height:34px;border-radius:10px;background:var(--bg-raised);color:var(--text-muted);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+  .opt.sel{border-color:var(--accent);background:rgba(79,195,217,.14);}
+  .opt.sel .lab{background:var(--accent);color:var(--accent-ink);}
+  .view-head{display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:6px;}
+  .view-head .who{font-size:16px;font-weight:900;}
+
+  .rbar{background:var(--bg-surface);border:2px solid var(--line);border-radius:16px;padding:14px 14px 12px;margin-top:12px;opacity:.25;transition:opacity .4s,border-color .3s,background .3s;}
+  .rbar.on{opacity:1;}
+  .rbar.top{border-color:var(--safe);background:rgba(95,208,168,.10);}
+  .rbar .rh{display:flex;justify-content:space-between;align-items:baseline;gap:10px;}
+  .rbar .rt{font-size:16px;font-weight:900;}
+  .rbar .rc{font-size:22px;font-weight:900;color:var(--accent);font-variant-numeric:tabular-nums;}
+  .rbar.top .rc{color:var(--safe);}
+  .rbar .rv{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;min-height:32px;}
+  .verdict{text-align:center;font-size:22px;font-weight:900;margin-top:20px;line-height:1.5;min-height:34px;}
+  .verdict.drink{color:var(--danger);}
+  .verdict.safe{color:var(--safe);}
+  .verdict.tie{color:var(--gold);}
+  .verdict-sub{text-align:center;color:var(--text-muted);font-size:12.5px;margin-top:6px;line-height:1.7;min-height:20px;}
+
+  .tally{background:var(--bg-surface);border:1px solid var(--line);border-radius:var(--radius-card);padding:6px 16px;margin-top:16px;}
+  .trow{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);}
+  .trow:last-child{border-bottom:none;}
+  .trow .n{margin-left:auto;font-size:20px;font-weight:900;font-variant-numeric:tabular-nums;}
+  .trow .u{font-size:12px;color:var(--text-muted);margin-left:4px;}
+  .bignum{width:44px;height:44px;border-radius:12px;background:var(--accent);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900;flex-shrink:0;}
+  .opt.show{cursor:default;}
+  .opt.show .t{font-size:19px;font-weight:900;}
+  .count{text-align:center;font-size:84px;font-weight:900;color:var(--accent);line-height:1;margin:22px 0 0;min-height:84px;font-variant-numeric:tabular-nums;}
+  .count.go{font-size:78px;color:var(--gold);letter-spacing:.02em;animation:pop .35s ease;}
+  @keyframes pop{0%{transform:scale(.5);opacity:0;}60%{transform:scale(1.18);}100%{transform:scale(1);opacity:1;}}
+  .inrow{display:flex;align-items:center;gap:12px;background:var(--bg-surface);border:1.5px solid var(--line);border-radius:16px;padding:12px 14px;margin-top:10px;}
+  .inrow .tx{flex:1;font-size:15px;font-weight:900;line-height:1.4;}
+  .step{width:44px;height:44px;border-radius:12px;background:var(--bg-raised);color:var(--text);font-size:24px;font-weight:900;}
+  .inrow .val{width:34px;text-align:center;font-size:26px;font-weight:900;font-variant-numeric:tabular-nums;}
+  .sumline{text-align:center;font-size:13px;color:var(--text-muted);margin-top:14px;}
+  .sumline.good{color:var(--safe);font-weight:700;}
+  .hist{background:var(--bg-surface);border:1px solid var(--line);border-radius:var(--radius-card);padding:6px 16px;margin-top:16px;}
+  .hrow{padding:10px 0;border-bottom:1px solid var(--line);font-size:13px;line-height:1.6;}
+  .hrow:last-child{border-bottom:none;}
+  .hrow b{font-weight:900;}
+</style>
+</head>
+<body>
+<div id="app">
+  <button class="mute" id="muteBtn" aria-label="音の切り替え">🔊</button>
+
+  <!-- 設定 -->
+  <section class="screen active" id="s-setup">
+    <div class="eyebrow">NOMIKAI GAMES</div>
+    <h1 class="title">偽りの多数決</h1>
+    <p class="tagline">お題の3択から「みんなが選びそうな答え」を予想して、GO!!の合図で指の本数を一斉に出す。多数派から外れた人が飲む。</p>
+    <div class="rule-card">
+      <div class="rule-row"><div class="rule-num">1</div><div class="rule-text">画面にお題と3つの選択肢(<b>1・2・3</b>)が出る。「みんなが選びそうな答え」を予想する。</div></div>
+      <div class="rule-row"><div class="rule-num">2</div><div class="rule-text">カウントダウンのあと<b>GO!!</b>の合図で、<b>指の本数(1〜3本)</b>で自分の答えを一斉に出す。</div></div>
+      <div class="rule-row"><div class="rule-num">3</div><div class="rule-text">いちばん多くの人が出した答えが多数派。<b>多数派以外を出した人が飲む。</b></div></div>
+      <div class="rule-row"><div class="rule-num">4</div><div class="rule-text">最多が複数(同数トップ)のときは多数派なしで、誰も飲まない。同じお題でやり直す。全員が同じ答えなら全員安全。</div></div>
+    </div>
+    <div class="notice">出し直し・後出し・話し合いは禁止。お題の順番と選択肢の並びは、毎回偏りのない乱数で決めます。判定は全員で見て行い、アプリは結果に関与しません。</div>
+    <div class="spacer"></div>
+    <div class="bottombar"><button class="btn-primary" id="startBtn">はじめる</button></div>
+  </section>
+
+  <section class="screen" id="s-play">
+    <button class="quit" id="quit1">← ルールに戻る</button>
+    <div class="eyebrow" id="roundLabel">ROUND 1</div>
+    <div class="qcard"><div class="qtext" id="qText">-</div><div class="qsub">「みんなが選びそうな答え」を予想して、指の本数で選ぶ</div></div>
+    <div class="opts" id="opts"></div>
+    <div class="count" id="countNum"></div>
+    <div class="verdict-sub" id="playHint"></div>
+    <div class="spacer"></div>
+    <div class="bottombar">
+      <button class="btn-primary" id="mainBtn">カウントダウン開始</button>
+      <button class="btn-ghost" id="retryBtn" style="display:none">同数だった → もう一度(同じお題)</button>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ---------- 乱数 [3][4] ---------- */
+  function randInt(n){
+    var range = 4294967296, limit = range - (range % n), buf = new Uint32Array(1);
+    do { crypto.getRandomValues(buf); } while(buf[0] >= limit);
+    return buf[0] % n;
+  }
+
+  /* PURE-BEGIN */
+  // Fisher-Yates シャッフル(j は [0,i]) [3]
+  function shuffle(arr, rnd){
+    var a = arr.slice();
+    for(var i = a.length - 1; i > 0; i--){
+      var j = rnd(i + 1);
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+  /* PURE-END */
+
+  /* ---------- お題(オリジナル) [1][2] ---------- */
+  // [お題, 選択肢A, B, C]
+  var THEMES = [
+    ["飲み会の1杯目といえば?","ビール","ハイボール","レモンサワー"],
+    ["飲み会の〆といえば?","ラーメン","お茶漬け","アイス"],
+    ["居酒屋で最初に頼む一品は?","枝豆","唐揚げ","ポテトフライ"],
+    ["無人島に1つだけ持っていくなら?","ナイフ","ライター","スマホ(圏外)"],
+    ["この中で一番「あるある」なのは?","終電を逃す","財布を忘れる","スマホを置き忘れる"],
+    ["旅行で一番もめがちなことは?","行き先","食事の店","集合時間"],
+    ["朝起きてまずやることは?","スマホを見る","水を飲む","二度寝する"],
+    ["一番嫌な待ち時間は?","電車の遅延","レジの行列","病院の待合室"],
+    ["夏といえば?","海","花火","かき氷"],
+    ["冬といえば?","こたつ","鍋","スノーボード"],
+    ["コンビニで思わず買ってしまうのは?","お菓子","ホットスナック","新商品のスイーツ"],
+    ["カラオケで一番盛り上がるのは?","定番の盛り上げ曲","アニメ・ゲーム曲","昭和・平成の懐メロ"],
+    ["最も許せないマナー違反は?","歩きスマホ","大声の通話","割り込み"],
+    ["休日の過ごし方で一番多そうなのは?","家でゴロゴロ","出かけて買い物","友達と飲み・食事"],
+    ["もらって一番うれしいのは?","現金","食べ物","旅行券"],
+    ["もし1日だけ透明人間になれたら?","覗き見する","いたずらする","ただ寝る"],
+    ["恋人の欠点で一番許せないのは?","返信が遅い","時間にルーズ","お金にルーズ"],
+    ["友達にされて一番イラッとするのは?","遅刻","ドタキャン","既読スルー"],
+    ["人生で一番大事なのは?","お金","健康","友達・人間関係"],
+    ["もし宝くじで1億円当たったら最初に?","貯金","家・車を買う","旅行に行く"],
+    ["一番食べたくなる夜食は?","カップ麺","おにぎり","アイス"],
+    ["鍋の締めといえば?","うどん","雑炊","ラーメン"],
+    ["焼肉で最初に頼むのは?","タン塩","カルビ","ハラミ"],
+    ["寿司で一番好きなネタは?","サーモン","マグロ","エビ"],
+    ["最強の朝ごはんは?","白米と味噌汁","トースト","シリアル"],
+    ["みんな一度はやったことがあるのは?","宿題を前日にやる","目覚ましを何個もかける","飲み会で記憶をなくす"],
+    ["一番ストレスなのは?","人混み","満員電車","長い会議"],
+    ["一番テンションが上がる瞬間は?","給料日","休み前日","旅行当日の朝"],
+    ["一番怖いのは?","幽霊","虫","高いところ"],
+    ["最も使えそうな特殊能力は?","瞬間移動","時間を止める","心を読む"],
+    ["友達に一番求めるものは?","面白さ","優しさ","信頼"],
+    ["最高のデートは?","映画","遊園地","温泉旅行"],
+    ["一番損した気分になるのは?","賞味期限切れに気付く","電車に乗り遅れる","傘を忘れて雨に降られる"],
+    ["年末年始の過ごし方は?","実家でのんびり","友達と遊ぶ","旅行に行く"],
+    ["最後の晩餐に選ぶなら?","寿司","焼肉","ラーメン"],
+    ["サラダに合わせるなら?","ごまドレッシング","和風ドレッシング","マヨネーズ"],
+    ["目玉焼きにかけるなら?","醤油","ソース","塩こしょう"],
+    ["酔ったときにやりがちなのは?","連絡を送りすぎる","同じ話を繰り返す","突然寝る"],
+    ["一番頼りになるのは?","スマホの地図","友達の記憶","自分の勘"],
+    ["幸せを感じる瞬間は?","おいしいものを食べる","ぐっすり眠る","好きな人と過ごす"]
+  ];
+
+  /* ---------- 状態 ---------- */
+  var state = { deck: [], deckPos: 0, round: 0, theme: null, timers: [], phase: 'ready' };
+  function el(id){ return document.getElementById(id); }
+  function show(id){
+    document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+    el(id).classList.add('active');
+  }
+  function later(fn, ms){ state.timers.push(setTimeout(fn, ms)); }
+  function clearTimers(){ state.timers.forEach(clearTimeout); state.timers = []; }
+
+  /* ---------- 音 [5] ---------- */
+  var actx = null, master = null, muted = false;
+  function audio(){
+    if(muted) return null;
+    try{
+      if(!actx){
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if(!AC) return null;
+        actx = new AC();
+        master = actx.createDynamicsCompressor();
+        master.connect(actx.destination);
+      }
+      if(actx.state === 'suspended') actx.resume();
+      return actx;
+    }catch(e){ return null; }
+  }
+  function tone(freq, dur, type, vol, delay){
+    var a = audio(); if(!a) return;
+    var t0 = a.currentTime + (delay || 0);
+    var o = a.createOscillator(), g = a.createGain();
+    o.type = type || 'sine'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol || 0.15, t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(master);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  }
+  el('muteBtn').addEventListener('click', function(){
+    muted = !muted; el('muteBtn').textContent = muted ? '🔇' : '🔊';
+  });
+
+  /* ---------- 流れ ---------- */
+  el('startBtn').addEventListener('click', function(){
+    audio();
+    state.deck = shuffle(THEMES.map(function(_, i){ return i; }), randInt);
+    state.deckPos = 0; state.round = 0;
+    nextTheme();
+  });
+  el('quit1').addEventListener('click', function(){ clearTimers(); show('s-setup'); });
+
+  function nextTheme(){
+    if(state.deckPos >= state.deck.length){
+      state.deck = shuffle(THEMES.map(function(_, i){ return i; }), randInt);
+      state.deckPos = 0;
+    }
+    var t = THEMES[state.deck[state.deckPos++]];
+    state.round++;
+    // 選択肢の並び(1・2・3 の位置)も毎回ランダム(位置による偏り対策)
+    state.theme = { q: t[0], opts: shuffle(t.slice(1), randInt) };
+    el('roundLabel').textContent = 'ROUND ' + state.round;
+    el('qText').textContent = state.theme.q;
+    var wrap = el('opts'); wrap.innerHTML = '';
+    state.theme.opts.forEach(function(text, k){
+      var b = document.createElement('div');
+      b.className = 'opt show';
+      b.innerHTML = '<span class="bignum">' + (k + 1) + '</span><span class="t"></span>';
+      b.lastChild.textContent = text;
+      wrap.appendChild(b);
+    });
+    setPhase('ready');
+    show('s-play');
+  }
+
+  // phase: ready(開始待ち) → counting(カウントダウン中) → done(GO!!のあと)
+  function setPhase(ph){
+    state.phase = ph;
+    var num = el('countNum'), main = el('mainBtn'), retry = el('retryBtn'), hint = el('playHint');
+    if(ph === 'ready'){
+      num.className = 'count'; num.textContent = '';
+      hint.textContent = '答えを決めたら、カウントダウン開始。';
+      main.textContent = 'カウントダウン開始'; main.disabled = false; retry.style.display = 'none';
+    } else if(ph === 'counting'){
+      main.disabled = true; retry.style.display = 'none'; hint.textContent = '指の準備!';
+    } else {
+      hint.textContent = '指の本数が一番多い答えが多数派。それ以外を出した人が飲む。';
+      main.textContent = '次のお題へ'; main.disabled = false; retry.style.display = 'block';
+    }
+  }
+  function startCountdown(){
+    clearTimers();
+    setPhase('counting');
+    var num = el('countNum');
+    num.className = 'count'; num.textContent = '3';
+    tone(440, 0.12, 'triangle', 0.14);
+    later(function(){ num.textContent = '2'; tone(440, 0.12, 'triangle', 0.14); }, 1000);
+    later(function(){ num.textContent = '1'; tone(440, 0.12, 'triangle', 0.14); }, 2000);
+    later(function(){
+      num.className = 'count go'; num.textContent = 'GO!!';
+      tone(880, 0.3, 'triangle', 0.16); tone(1175, 0.25, 'triangle', 0.12, 0.08);
+      setPhase('done');
+    }, 3000);
+  }
+  el('mainBtn').addEventListener('click', function(){
+    if(state.phase === 'ready') startCountdown();
+    else if(state.phase === 'done') nextTheme();
+  });
+  el('retryBtn').addEventListener('click', function(){ if(state.phase === 'done') startCountdown(); });
+})();
+</script>
+</body>
+</html>

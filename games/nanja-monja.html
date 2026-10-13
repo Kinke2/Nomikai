@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>なんじゃもんじゃ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-base:#14121A;
+    --bg-surface:#1E1B26;
+    --bg-raised:#282330;
+    --line:#3A3444;
+    --text:#F3F1EE;
+    --text-muted:#9A93A6;
+    --accent:#C792EA;
+    --accent-ink:#1F0A2E;
+    --radius-card:18px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;overscroll-behavior:none;}
+  body{
+    background:var(--bg-base);
+    color:var(--text);
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #app{
+    width:100%;
+    max-width:460px;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    position:relative;
+  }
+  h1,h2,h3{margin:0;}
+  button{font-family:inherit;cursor:pointer;border:none;}
+
+  .screen{display:none;flex-direction:column;flex:1;min-height:0;animation:fadeIn .3s ease;}
+  .screen.active{display:flex;}
+  @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+
+  /* ---- setup ---- */
+  #screen-setup{padding:28px 22px;justify-content:center;}
+  .eyebrow{color:var(--text-muted);font-size:12px;letter-spacing:.05em;margin-bottom:8px;}
+  .title{font-size:28px;font-weight:900;}
+  .tagline{color:var(--text-muted);font-size:13.5px;margin-top:12px;line-height:1.8;}
+  .rule-card{
+    background:var(--bg-surface);border:1px solid var(--line);border-radius:var(--radius-card);
+    padding:18px;margin-top:26px;
+  }
+  .rule-row{display:flex;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);}
+  .rule-row:last-child{border-bottom:none;}
+  .rule-num{
+    width:22px;height:22px;border-radius:6px;background:var(--bg-raised);
+    color:var(--text-muted);font-size:12px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  }
+  .rule-text{font-size:13px;line-height:1.6;}
+
+  .bottombar{padding:16px 22px calc(16px + env(safe-area-inset-bottom));}
+  .btn-primary{
+    width:100%;background:var(--accent);color:var(--accent-ink);border-radius:14px;padding:16px;
+    font-size:15.5px;font-weight:900;
+  }
+  .btn-ghost{
+    width:100%;background:transparent;color:var(--text-muted);border:1px solid var(--line);
+    border-radius:14px;padding:13px;font-size:13.5px;font-weight:700;margin-top:9px;
+  }
+
+  /* ---- play ---- */
+  #screen-play{padding:16px 20px 0;}
+  .play-top{display:flex;justify-content:space-between;align-items:center;}
+  .counter{font-size:12.5px;color:var(--text-muted);}
+  .counter b{color:var(--text);}
+  .log-toggle{
+    font-size:11.5px;color:var(--accent);background:var(--bg-surface);
+    border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-weight:700;
+  }
+
+  .card-stage{flex:1;display:flex;align-items:center;justify-content:center;padding:10px 0;}
+  .creature-card{
+    width:78%;max-width:280px;aspect-ratio:1/1.1;
+    background:var(--bg-surface);border:1.5px solid var(--line);border-radius:24px;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 16px 34px rgba(0,0,0,.45);
+    padding:16px;
+  }
+  .creature-card svg{ width:100%;height:100%; }
+
+  .status-zone{padding:6px 0 18px;text-align:center;min-height:100px;}
+  .prompt-text{font-size:17px;font-weight:900;}
+  .prompt-text.naming{ color:var(--accent); }
+  .prompt-text.guessing{ color:#FF9F6B; }
+  .prompt-sub{color:var(--text-muted);font-size:12.5px;margin-top:6px;}
+
+  /* ---- log drawer ---- */
+  .log-drawer{
+    position:fixed;inset:0;background:rgba(10,8,14,.72);
+    display:none;align-items:flex-end;justify-content:center;z-index:20;
+  }
+  .log-drawer.show{display:flex;}
+  .log-sheet{
+    width:100%;max-width:460px;max-height:75vh;overflow-y:auto;
+    background:var(--bg-surface);border-radius:22px 22px 0 0;
+    padding:20px 20px calc(20px + env(safe-area-inset-bottom));
+  }
+  .log-sheet-title{font-size:15px;font-weight:900;margin-bottom:14px;}
+  .log-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+  .log-thumb-wrap{
+    background:var(--bg-raised);border-radius:12px;padding:6px;
+    display:flex;align-items:center;justify-content:center;aspect-ratio:1/1;
+  }
+  .log-thumb-wrap.unseen{ opacity:.18; }
+  .log-thumb-wrap svg{ width:100%;height:100%; }
+  .log-empty{color:var(--text-muted);font-size:13px;text-align:center;padding:20px 0;}
+  .log-close{
+    width:100%;background:var(--bg-raised);color:var(--text-muted);border-radius:12px;
+    padding:12px;font-size:13.5px;font-weight:700;margin-top:16px;
+  }
+
+  /* ---- end ---- */
+  #screen-end{padding:28px 22px;justify-content:center;}
+  .end-title{font-size:24px;font-weight:900;}
+  .end-sub{color:var(--text-muted);font-size:13px;margin-top:8px;}
+  .end-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:22px;}
+  .end-card{
+    background:var(--bg-surface);border:1px solid var(--line);border-radius:14px;
+    padding:10px;text-align:center;
+  }
+  .end-card svg{width:48px;height:48px;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- SETUP -->
+  <div class="screen active" id="screen-setup">
+    <div class="eyebrow">NANJA MONJA</div>
+    <div class="title">なんじゃもんじゃ</div>
+    <div class="tagline">得体の知れない生物に、その場で名前をつけよう。</div>
+
+    <div class="rule-card">
+      <div class="rule-row"><div class="rule-num">1</div><div class="rule-text">初めて出てきた生物には、声に出してみんなで名前をつける(アプリへの入力は不要)</div></div>
+      <div class="rule-row"><div class="rule-num">2</div><div class="rule-text">同じ生物が再び出てきたら、その名前を一番早く言った人の勝ち</div></div>
+      <div class="rule-row"><div class="rule-num">3</div><div class="rule-text">7種類×5枚、全35枚。判定はテーブルで</div></div>
+    </div>
+
+    <div class="bottombar">
+      <button class="btn-primary" id="startBtn">はじめる</button>
+    </div>
+  </div>
+
+  <!-- PLAY -->
+  <div class="screen" id="screen-play">
+    <div class="play-top">
+      <div class="counter"><b id="drawnCount">0</b> / 35 枚</div>
+      <button class="log-toggle" id="logToggleBtn">図鑑を見る</button>
+    </div>
+
+    <div class="card-stage">
+      <div class="creature-card" id="creatureCard"></div>
+    </div>
+
+    <div class="status-zone" id="statusZone"></div>
+
+    <div class="bottombar">
+      <button class="btn-primary" id="nextBtn">つぎへ</button>
+    </div>
+  </div>
+
+  <!-- LOG DRAWER -->
+  <div class="log-drawer" id="logDrawer">
+    <div class="log-sheet">
+      <div class="log-sheet-title">登場した生物</div>
+      <div class="log-grid" id="logGrid"></div>
+      <button class="log-close" id="logCloseBtn">閉じる</button>
+    </div>
+  </div>
+
+  <!-- END -->
+  <div class="screen" id="screen-end">
+    <div class="eyebrow">COMPLETE</div>
+    <div class="end-title">図鑑コンプリート!</div>
+    <div class="end-sub">全35枚をめくり終えました</div>
+    <div class="end-grid" id="endGrid"></div>
+    <div class="bottombar" style="padding-left:0;padding-right:0;">
+      <button class="btn-primary" id="againBtn">もう一度</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  // ---------- creature generation (deterministic per species, trig-based shapes) ----------
+  function starPoints(cx,cy,spikes,outerR,innerR,irregular){
+    var pts=[]; var step=Math.PI/spikes; var rot=-Math.PI/2;
+    for(var i=0;i<spikes*2;i++){
+      var r=(i%2===0)?outerR:innerR;
+      if(irregular){ r *= (0.82 + ((i*53)%17)/17*0.36); }
+      pts.push((cx+Math.cos(rot)*r).toFixed(1)+','+(cy+Math.sin(rot)*r).toFixed(1));
+      rot+=step;
+    }
+    return pts.join(' ');
+  }
+  function polygonPoints(cx,cy,sides,r,rotationDeg,jitter){
+    var pts=[]; var rot=(rotationDeg||0)*Math.PI/180 - Math.PI/2; var step=2*Math.PI/sides;
+    for(var i=0;i<sides;i++){
+      var rr = r * (jitter ? (0.78 + ((i*37)%13)/13*0.5) : 1);
+      pts.push((cx+Math.cos(rot)*rr).toFixed(1)+','+(cy+Math.sin(rot)*rr).toFixed(1));
+      rot+=step;
+    }
+    return pts.join(' ');
+  }
+  function eyeSvg(x,y,r){
+    return '<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="#fff"/>'
+      + '<circle cx="'+(x+r*0.18).toFixed(1)+'" cy="'+(y+r*0.18).toFixed(1)+'" r="'+(r*0.52).toFixed(1)+'" fill="#1a1b1e"/>'
+      + '<circle cx="'+(x-r*0.22).toFixed(1)+'" cy="'+(y-r*0.22).toFixed(1)+'" r="'+(r*0.18).toFixed(1)+'" fill="#fff"/>';
+  }
+
+  var SPECIES = [
+    {
+      shape:'lumpyBlob', color:'#F17FB1',
+      eyes:[[60,58,21],[87,70,7]], mouth:'teeth', extra:'spiralAntenna'
+    },
+    {
+      shape:'wildStar', color:'#5FBCD3',
+      eyes:[[64,66,17],[93,76,6]], mouth:'tongue', extra:'none'
+    },
+    {
+      shape:'tall', color:'#F2A65A',
+      eyes:[[52,52,10],[87,48,6],[68,80,13]], mouth:'teeth', extra:'tentaclesUneven'
+    },
+    {
+      shape:'lopsidedDiamond', color:'#8B6BFF',
+      eyes:[[70,56,10],[70,85,7]], mouth:'smile', extra:'curlyHorns'
+    },
+    {
+      shape:'lumpyCloud', color:'#6FCF97',
+      eyes:[[58,70,9]], mouth:'flat', extra:'stalkEye'
+    },
+    {
+      shape:'blob', color:'#E8C24A',
+      eyes:[[57,58,24],[93,48,6],[96,70,4]], mouth:'grin', extra:'nubs'
+    },
+    {
+      shape:'wavy', color:'#7C9CF0',
+      eyes:[[34,68,5],[54,60,9],[76,64,6],[100,70,11]], mouth:'teeth', extra:'legNubs'
+    }
+  ];
+
+  function creatureSvg(cfg){
+    var cx=70, cy=75, body='', extraBack='', extraFront='', spots='';
+
+    switch(cfg.shape){
+      case 'blob':
+        body='<ellipse cx="'+cx+'" cy="'+cy+'" rx="46" ry="42" fill="'+cfg.color+'"/>';
+        break;
+      case 'lumpyBlob':
+        body='<ellipse cx="'+(cx-8)+'" cy="'+(cy+4)+'" rx="38" ry="36" fill="'+cfg.color+'"/>'
+           + '<ellipse cx="'+(cx+18)+'" cy="'+(cy-6)+'" rx="26" ry="30" fill="'+cfg.color+'"/>';
+        break;
+      case 'wildStar':
+        body='<polygon points="'+starPoints(cx,cy,7,52,22,true)+'" fill="'+cfg.color+'"/>';
+        break;
+      case 'tall':
+        body='<ellipse cx="'+cx+'" cy="'+cy+'" rx="29" ry="50" fill="'+cfg.color+'" transform="rotate(-6 '+cx+' '+cy+')"/>';
+        break;
+      case 'lopsidedDiamond':
+        body='<polygon points="'+polygonPoints(cx,cy,4,52,45,true)+'" fill="'+cfg.color+'"/>';
+        break;
+      case 'lumpyCloud':
+        body='<circle cx="'+(cx-28)+'" cy="'+(cy+12)+'" r="21" fill="'+cfg.color+'"/>'
+           + '<circle cx="'+(cx+24)+'" cy="'+(cy+14)+'" r="27" fill="'+cfg.color+'"/>'
+           + '<circle cx="'+(cx-2)+'" cy="'+(cy-14)+'" r="31" fill="'+cfg.color+'"/>';
+        break;
+      case 'wavy':
+        body='<path d="M18,'+cy+' Q30,'+(cy-30)+' 50,'+cy+' Q70,'+(cy+26)+' 92,'+cy+' Q112,'+(cy-24)+' 122,'+cy
+           + ' L122,'+(cy+30)+' Q110,'+(cy+50)+' 92,'+(cy+30)+' Q70,'+(cy+52)+' 50,'+(cy+30)+' Q30,'+(cy+50)+' 18,'+(cy+30)+' Z" fill="'+cfg.color+'"/>';
+        break;
+    }
+
+    if(cfg.extra==='spiralAntenna'){
+      extraBack='<path d="M55,'+(cy-34)+' C48,'+(cy-54)+' 62,'+(cy-64)+' 44,'+(cy-66)+' C30,'+(cy-67)+' 34,'+(cy-52)+' 46,'+(cy-54)+'" stroke="'+cfg.color+'" stroke-width="4" fill="none" stroke-linecap="round"/>'
+        + '<path d="M85,'+(cy-32)+' Q94,'+(cy-52)+' 100,'+(cy-58)+'" stroke="'+cfg.color+'" stroke-width="4" fill="none" stroke-linecap="round"/><circle cx="100" cy="'+(cy-58)+'" r="5" fill="'+cfg.color+'"/>';
+    } else if(cfg.extra==='curlyHorns'){
+      extraBack='<path d="M58,'+(cy-38)+' C50,'+(cy-52)+' 62,'+(cy-64)+' 52,'+(cy-70)+'" stroke="'+cfg.color+'" stroke-width="7" fill="none" stroke-linecap="round"/>'
+        + '<path d="M84,'+(cy-38)+' C94,'+(cy-48)+' 82,'+(cy-62)+' 92,'+(cy-66)+'" stroke="'+cfg.color+'" stroke-width="7" fill="none" stroke-linecap="round"/>';
+    } else if(cfg.extra==='tentaclesUneven'){
+      [[40,44],[68,62],[98,36]].forEach(function(p){
+        extraBack += '<path d="M'+p[0]+','+(cy+40)+' Q'+(p[0]-8)+','+(cy+40+p[1]*0.6)+' '+(p[0]+6)+','+(cy+40+p[1])+'" stroke="'+cfg.color+'" stroke-width="7" fill="none" stroke-linecap="round"/>';
+      });
+    } else if(cfg.extra==='stalkEye'){
+      extraBack='<path d="M92,'+(cy-30)+' Q104,'+(cy-46)+' 108,'+(cy-52)+'" stroke="'+cfg.color+'" stroke-width="7" fill="none" stroke-linecap="round"/>';
+      extraFront=eyeSvg(108,cy-52,10);
+    } else if(cfg.extra==='nubs'){
+      [[36,44,7],[104,52,6],[42,102,6],[100,100,8]].forEach(function(p){
+        extraBack += '<circle cx="'+p[0]+'" cy="'+p[1]+'" r="'+p[2]+'" fill="'+cfg.color+'"/>';
+      });
+    } else if(cfg.extra==='legNubs'){
+      [30,52,74,96,116].forEach(function(x){
+        extraBack += '<polygon points="'+(x-6)+','+(cy+26)+' '+(x+6)+','+(cy+26)+' '+x+','+(cy+38)+'" fill="'+cfg.color+'"/>';
+      });
+    }
+
+    var eyes = cfg.eyes.map(function(p){ return eyeSvg(p[0],p[1],p[2]); }).join('');
+
+    var mcx=70, mcy=cy+30, mouth='';
+    if(cfg.mouth==='smile'){
+      mouth='<path d="M'+(mcx-14)+','+mcy+' Q'+mcx+','+(mcy+12)+' '+(mcx+14)+','+mcy+'" stroke="#1a1b1e" stroke-width="4" fill="none" stroke-linecap="round"/>';
+    } else if(cfg.mouth==='grin'){
+      mouth='<path d="M'+(mcx-20)+','+(mcy-4)+' Q'+mcx+','+(mcy+20)+' '+(mcx+20)+','+(mcy-4)+' Z" fill="#1a1b1e"/>'
+        + '<path d="M'+(mcx-16)+','+(mcy-2)+' Q'+mcx+','+(mcy+6)+' '+(mcx+16)+','+(mcy-2)+'" fill="#fff"/>';
+    } else if(cfg.mouth==='flat'){
+      mouth='<line x1="'+(mcx-16)+'" y1="'+mcy+'" x2="'+(mcx+16)+'" y2="'+mcy+'" stroke="#1a1b1e" stroke-width="4" stroke-linecap="round"/>';
+    } else if(cfg.mouth==='teeth'){
+      mouth='<path d="M'+(mcx-18)+','+(mcy-2)+' Q'+mcx+','+(mcy+14)+' '+(mcx+18)+','+(mcy-2)+' Z" fill="#1a1b1e"/>'
+        + '<polygon points="'+(mcx-10)+','+(mcy-1)+' '+(mcx-6)+','+(mcy-1)+' '+(mcx-8)+','+(mcy+5)+'" fill="#fff"/>'
+        + '<polygon points="'+(mcx+2)+','+(mcy+2)+' '+(mcx+6)+','+(mcy+2)+' '+(mcx+4)+','+(mcy+8)+'" fill="#fff"/>'
+        + '<polygon points="'+(mcx+10)+','+(mcy-1)+' '+(mcx+14)+','+(mcy-1)+' '+(mcx+12)+','+(mcy+5)+'" fill="#fff"/>';
+    } else if(cfg.mouth==='tongue'){
+      mouth='<path d="M'+(mcx-13)+','+mcy+' Q'+mcx+','+(mcy+10)+' '+(mcx+13)+','+mcy+'" stroke="#1a1b1e" stroke-width="4" fill="none" stroke-linecap="round"/>'
+        + '<ellipse cx="'+mcx+'" cy="'+(mcy+14)+'" rx="7" ry="11" fill="#E85D75"/>';
+    }
+
+    return '<svg viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg">'
+      + extraBack + body + spots + eyes + mouth + extraFront
+      + '</svg>';
+  }
+
+  // ---------- state ----------
+  var state = {
+    deck: [],
+    seenSpecies: {},
+    drawnCount: 0,
+    currentSpecies: null
+  };
+
+  function el(id){ return document.getElementById(id); }
+  function show(id){
+    document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+    el(id).classList.add('active');
+  }
+  function vibrate(p){ if(navigator.vibrate){ navigator.vibrate(p); } }
+
+  function buildDeck(){
+    var d = [];
+    for(var s=0;s<SPECIES.length;s++){
+      for(var c=0;c<5;c++){ d.push(s); }
+    }
+    for(var i=d.length-1;i>0;i--){
+      var j=Math.floor(Math.random()*(i+1));
+      var t=d[i]; d[i]=d[j]; d[j]=t;
+    }
+    return d;
+  }
+
+  // ---------- play flow ----------
+  function startGame(){
+    state.deck = buildDeck();
+    state.seenSpecies = {};
+    state.drawnCount = 0;
+    show('screen-play');
+    drawNext();
+  }
+
+  function drawNext(){
+    if(state.deck.length === 0){ showEnd(); return; }
+    var speciesIdx = state.deck.pop();
+    state.drawnCount++;
+    state.currentSpecies = speciesIdx;
+    el('drawnCount').textContent = state.drawnCount;
+    el('creatureCard').innerHTML = creatureSvg(SPECIES[speciesIdx]);
+    vibrate([12]);
+
+    var zone = el('statusZone');
+    if(!state.seenSpecies[speciesIdx]){
+      state.seenSpecies[speciesIdx] = true;
+      zone.innerHTML =
+        '<div class="prompt-text naming">はじめまして!名前をつけよう</div>' +
+        '<div class="prompt-sub">声に出してみんなで決めてね</div>';
+    } else {
+      zone.innerHTML =
+        '<div class="prompt-text guessing">はやく言え!</div>' +
+        '<div class="prompt-sub">一番早く名前を言えた人の勝ち</div>';
+    }
+  }
+
+  function showEnd(){
+    var grid = el('endGrid');
+    grid.innerHTML = '';
+    SPECIES.forEach(function(cfg){
+      var card = document.createElement('div');
+      card.className = 'end-card';
+      card.innerHTML = creatureSvg(cfg);
+      grid.appendChild(card);
+    });
+    show('screen-end');
+  }
+
+  // ---------- log drawer ----------
+  function renderLog(){
+    var grid = el('logGrid');
+    grid.innerHTML = '';
+    SPECIES.forEach(function(cfg, i){
+      var wrap = document.createElement('div');
+      wrap.className = 'log-thumb-wrap' + (state.seenSpecies[i] ? '' : ' unseen');
+      wrap.innerHTML = creatureSvg(cfg);
+      grid.appendChild(wrap);
+    });
+  }
+
+  el('logToggleBtn').addEventListener('click', function(){
+    renderLog();
+    el('logDrawer').classList.add('show');
+  });
+  el('logCloseBtn').addEventListener('click', function(){
+    el('logDrawer').classList.remove('show');
+  });
+
+  el('nextBtn').addEventListener('click', drawNext);
+  el('startBtn').addEventListener('click', startGame);
+  el('againBtn').addEventListener('click', startGame);
+})();
+</script>
+</body>
+</html>

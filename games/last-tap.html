@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ラストタップ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-base:#14121A;
+    --bg-surface:#1E1B26;
+    --bg-raised:#282330;
+    --line:#3A3444;
+    --text:#F3F1EE;
+    --text-muted:#9A93A6;
+    --accent:#8B8FF0;
+    --accent-ink:#14123A;
+    --danger:#FF5A45;
+    --radius-card:18px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;overscroll-behavior:none;background:var(--bg-base);}
+  body{
+    color:var(--text);
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    -webkit-tap-highlight-color:transparent;
+    overflow:hidden;
+  }
+  h1,h2,h3{margin:0;}
+  button{font-family:inherit;cursor:pointer;border:none;touch-action:manipulation;}
+
+  #app{width:100%;max-width:460px;margin:0 auto;height:100vh;height:100dvh;display:flex;flex-direction:column;position:relative;}
+  .screen{display:none;flex-direction:column;flex:1;min-height:0;animation:fadeIn .3s ease;}
+  .screen.active{display:flex;}
+  @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+
+  /* ---------- setup ---------- */
+  #screen-setup{padding:28px 22px 0;justify-content:center;overflow-y:auto;}
+  .eyebrow{color:var(--text-muted);font-size:12px;letter-spacing:.05em;margin-bottom:8px;}
+  .title{font-size:28px;font-weight:900;}
+  .tagline{color:var(--text-muted);font-size:13.5px;margin-top:12px;line-height:1.8;}
+  .section-label{font-size:12px;color:var(--text-muted);margin:24px 0 10px;}
+  .size-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+  .size-btn{
+    background:var(--bg-surface);color:var(--text);border:1.5px solid var(--line);border-radius:14px;
+    padding:14px 6px;text-align:center;transition:border-color .15s, background .15s;
+  }
+  .size-btn .big{display:block;font-size:22px;font-weight:900;}
+  .size-btn .small{display:block;font-size:11px;color:var(--text-muted);margin-top:3px;}
+  .size-btn.sel{border-color:var(--accent);background:rgba(139,143,240,.12);}
+  .size-btn.sel .big{color:var(--accent);}
+  .rule-card{
+    background:var(--bg-surface);border:1px solid var(--line);border-radius:var(--radius-card);
+    padding:12px 18px;margin-top:22px;
+  }
+  .rule-row{display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);}
+  .rule-row:last-child{border-bottom:none;}
+  .rule-num{
+    width:22px;height:22px;border-radius:6px;background:var(--bg-raised);
+    color:var(--text-muted);font-size:12px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  }
+  .rule-text{font-size:13px;line-height:1.6;}
+  .notice{font-size:11px;color:var(--text-muted);margin-top:12px;line-height:1.7;}
+  .bottombar{padding:16px 22px calc(16px + env(safe-area-inset-bottom));}
+  .btn-primary{
+    width:100%;background:var(--accent);color:var(--accent-ink);border-radius:14px;padding:16px;
+    font-size:15.5px;font-weight:900;
+  }
+  .btn-ghost{
+    width:100%;background:transparent;color:var(--text-muted);border:1px solid var(--line);
+    border-radius:14px;padding:13px;font-size:13.5px;font-weight:700;margin-top:9px;
+  }
+
+  /* ---------- play ---------- */
+  #screen-play{padding:0;}
+  .hdr{padding:14px 16px 6px;text-align:center;position:relative;user-select:none;-webkit-user-select:none;}
+  .back{
+    position:absolute;left:12px;top:12px;width:38px;height:38px;border-radius:10px;
+    background:var(--bg-surface);color:var(--text-muted);border:1px solid var(--line);font-size:16px;
+  }
+  .tgt{font-size:13px;color:var(--text-muted);}
+  .tgt b{font-size:30px;font-weight:900;color:var(--text);margin:0 4px;}
+  .timer{
+    font-size:64px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:.02em;
+    line-height:1.1;margin-top:2px;
+  }
+  .timer.hidden{color:var(--text-muted);}
+  .timer.count{color:var(--accent);}
+  .msg{font-size:13.5px;color:var(--text-muted);min-height:20px;margin-top:2px;}
+  #pads{
+    flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr;gap:10px;
+    padding:10px 12px calc(12px + env(safe-area-inset-bottom));touch-action:none;
+  }
+  .pad{
+    --c:#fff;--c-soft:rgba(255,255,255,.1);--c-line:rgba(255,255,255,.5);
+    position:relative;border-radius:20px;border:2px solid var(--c-line);background:var(--c-soft);
+    display:flex;flex-direction:column;align-items:center;padding-top:14px;
+    transition:background .08s, opacity .2s;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none;
+  }
+  .pad.wide{grid-column:1 / -1;}
+  .pad .pnum{font-size:36px;font-weight:900;color:var(--c);line-height:1;}
+  .pad .pst{font-size:12.5px;font-weight:700;color:var(--text-muted);margin-top:6px;}
+  .pad.down{background:var(--c);}
+  .pad.down .pnum,.pad.down .pst{color:#14121A;}
+  .pad.done{opacity:.38;background:var(--bg-surface);}
+  .pad.done .pnum{color:var(--text-muted);}
+
+  /* ---------- mute ---------- */
+  #muteBtn{
+    position:fixed;top:12px;right:12px;z-index:60;width:38px;height:38px;border-radius:10px;
+    background:var(--bg-surface);color:var(--text);border:1px solid var(--line);font-size:16px;
+  }
+
+  /* ---------- result ---------- */
+  #screen-result{padding:26px 20px 0;overflow-y:auto;}
+  .res-target{font-size:26px;font-weight:900;margin-top:2px;}
+  .res-target small{font-size:14px;color:var(--text-muted);font-weight:700;margin-left:3px;}
+  #resList{margin-top:18px;display:flex;flex-direction:column;gap:9px;}
+  .row{
+    display:flex;align-items:center;gap:11px;background:var(--bg-surface);border:1px solid var(--line);
+    border-radius:14px;padding:11px 13px;
+    opacity:0;transform:translateY(10px);transition:opacity .3s ease, transform .3s ease;
+  }
+  .row.show{opacity:1;transform:none;}
+  .row .rk{width:20px;text-align:center;font-weight:900;color:var(--text-muted);font-size:15px;}
+  .row .chip{
+    min-width:36px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+    color:#14121A;font-weight:900;font-size:13px;padding:0 6px;
+  }
+  .row .tm{flex:1;font-variant-numeric:tabular-nums;}
+  .row .tm b{font-size:20px;font-weight:900;}
+  .row .tm small{font-size:11px;color:var(--text-muted);margin-left:3px;}
+  .row .df{font-size:12px;color:var(--text-muted);text-align:right;font-variant-numeric:tabular-nums;line-height:1.5;}
+  .row .badge{width:26px;text-align:center;font-size:20px;}
+  .row.best{border-color:#E8C24A;box-shadow:0 0 0 1px rgba(232,194,74,.4);}
+  .row.worst{border-color:var(--danger);box-shadow:0 0 0 1px rgba(255,90,69,.5), 0 0 22px rgba(255,90,69,.35);}
+  .row.worst.show{animation:thud .5s ease;}
+  @keyframes thud{
+    0%{transform:scale(1.06) translateX(0);}
+    20%{transform:translateX(-7px);}
+    40%{transform:translateX(7px);}
+    60%{transform:translateX(-4px);}
+    80%{transform:translateX(3px);}
+    100%{transform:none;}
+  }
+  #resVerdict{text-align:center;font-size:17px;font-weight:900;margin:18px 0 4px;min-height:26px;color:var(--danger);}
+  #resButtons{display:none;}
+  #resButtons.show{display:block;animation:fadeIn .4s ease;}
+</style>
+</head>
+<body>
+
+<!--
+  参考文献 / References
+  [1] MDN: Pointer events / Multi-touch interaction (pointerId による複数指の追跡、touch-action)
+      https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events/Multi-touch_interaction
+  [2] MDN: Performance.now() (単調増加の高分解能タイマー。精度は仕様上あえて丸められる)
+      https://developer.mozilla.org/en-US/docs/Web/API/Performance/now
+  [3] MDN: Crypto.getRandomValues()
+      https://developer.mozilla.org/en-US/docs/Web/API/Crypto/getRandomValues
+  [4] MDN: Web Audio API
+      https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API
+  [5] Gibbon, J. (1977). Scalar expectancy theory and Weber's law in animal timing.
+      Psychological Review, 84(3), 279-325.
+      https://acousticslab.org/RECA293/293Files/293Downloads/Gibbon1977_ScalarExpectancyTheoryAndWebersLawInAnimalTiming.pdf
+      解説: https://en.wikipedia.org/wiki/Scalar_expectancy
+      → 時間間隔の推定誤差は、間隔が長いほど大きくなる(スカラー性)。
+        本ゲームは全員が同じ目標・同じ条件で競うため、この性質が特定の人を有利/不利にすることはない。
+  ※ 勝敗は「離した時刻 - 目標」の絶対値だけで決める。補正・重み付け・丸めなどの調整は一切しない。
+-->
+
+<button id="muteBtn" aria-label="音のオン/オフ">🔊</button>
+
+<div id="app">
+
+  <!-- SETUP -->
+  <div class="screen active" id="screen-setup">
+    <div class="eyebrow">LAST TAP</div>
+    <div class="title">ラストタップ</div>
+    <div class="tagline">指を置いて、目標の秒数で離せ。<br>いちばんズレた人が飲む。</div>
+
+    <div class="section-label">人数</div>
+    <div class="size-row" id="sizeRow">
+      <button class="size-btn sel" data-n="4"><span class="big">4人</span><span class="small">2×2</span></button>
+      <button class="size-btn" data-n="5"><span class="big">5人</span><span class="small">2×2+1</span></button>
+      <button class="size-btn" data-n="6"><span class="big">6人</span><span class="small">2×3</span></button>
+    </div>
+
+    <div class="rule-card">
+      <div class="rule-row"><div class="rule-num">1</div><div class="rule-text">スマホを囲んで、全員が自分のパッドに指を置く</div></div>
+      <div class="rule-row"><div class="rule-num">2</div><div class="rule-text">目標は10〜20秒のどれか(毎回ランダム)。最初の5秒だけ経過時間が見える</div></div>
+      <div class="rule-row"><div class="rule-num">3</div><div class="rule-text">5秒を過ぎたら時間は消える。目標だと思う瞬間に指を離す</div></div>
+      <div class="rule-row"><div class="rule-num">4</div><div class="rule-text">いちばん近い人が勝ち、いちばん遠い人が飲む</div></div>
+    </div>
+    <div class="notice">※ 3本指スワイプなどの端末の操作が起きると、指が離れた扱いになることがあります。</div>
+
+    <div class="bottombar" style="padding-left:0;padding-right:0;">
+      <button class="btn-primary" id="startBtn">はじめる</button>
+    </div>
+  </div>
+
+  <!-- PLAY -->
+  <div class="screen" id="screen-play">
+    <div class="hdr">
+      <button class="back" id="backBtn" aria-label="人数選択に戻る">←</button>
+      <div class="tgt">目標<b id="tgtVal">--</b>秒</div>
+      <div class="timer" id="timer">--</div>
+      <div class="msg" id="msg"></div>
+    </div>
+    <div id="pads"></div>
+  </div>
+
+  <!-- RESULT -->
+  <div class="screen" id="screen-result">
+    <div class="eyebrow">RESULT</div>
+    <div class="res-target">目標 <span id="resTarget"></span><small>秒</small></div>
+    <div id="resList"></div>
+    <div id="resVerdict"></div>
+    <div id="resButtons" class="bottombar" style="padding-left:0;padding-right:0;">
+      <button class="btn-primary" id="againBtn">もう一度</button>
+      <button class="btn-ghost" id="setupBtn">人数を変える</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  var HIDE_MS  = 5000;    // 最初の5秒だけ経過時間を表示
+  var LIMIT_MS = 60000;   // 離さない人がいても止まらないための上限(目標の最大20秒の3倍)
+  var MIN_T = 10, MAX_T = 20;
+  var COLORS = ['#E8C24A','#5FB4E8','#F2A65A','#5FD0A8','#F17FB1','#8B8FF0'];
+
+  /* =========================================================
+   * 公平性について
+   *  目標秒数は暗号論的乱数 (Crypto.getRandomValues [3]) と
+   *  棄却法 (剰余バイアスの除去) で 10〜20 の整数から一様に選ぶ。
+   *  勝敗は |離した時刻 − 目標| だけで決め、補正や調整は一切しない。
+   * ========================================================= */
+  function randInt(n){
+    if(window.crypto && window.crypto.getRandomValues){
+      var range = 0x100000000;
+      var limit = range - (range % n);
+      var buf = new Uint32Array(1);
+      do{ window.crypto.getRandomValues(buf); }while(buf[0] >= limit);
+      return buf[0] % n;
+    }
+    return Math.floor(Math.random()*n);
+  }
+
+  /* PURE-BEGIN */
+  function drawTarget(rand){ return MIN_T + rand(MAX_T - MIN_T + 1); }
+
+  // releases: プレイヤーごとの「開始から離すまでの ms」。誤差の絶対値だけで順位を決める。
+  function scoreRound(targetSec, releases){
+    var T = targetSec * 1000;
+    var rows = releases.map(function(t, i){
+      var d = t - T;
+      return { player:i, t:t, diff:d, abs:Math.abs(d), rank:0, best:false, worst:false };
+    });
+    var abs = rows.map(function(r){ return r.abs; });
+    var min = Math.min.apply(null, abs), max = Math.max.apply(null, abs);
+    var allTie = (min === max);
+    rows.forEach(function(r){ r.best = !allTie && r.abs === min; r.worst = !allTie && r.abs === max; });
+    var sorted = rows.slice().sort(function(a, b){ return (a.abs - b.abs) || (a.player - b.player); });
+    sorted.forEach(function(r, idx){
+      r.rank = (idx > 0 && r.abs === sorted[idx-1].abs) ? sorted[idx-1].rank : idx + 1;
+    });
+    return { rows:sorted, min:min, max:max, allTie:allTie };
+  }
+
+  // 縦持ちで2列。人数が奇数なら最後のパッドを横いっぱいにする
+  function padLayout(n){ return { cols:2, rows:Math.ceil(n/2), wideLast:(n % 2 === 1) }; }
+  /* PURE-END */
+
+  function $(id){ return document.getElementById(id); }
+  function vibrate(p){ try{ if(navigator.vibrate) navigator.vibrate(p); }catch(e){} }
+  function hexToRgba(hex, a){
+    var n = parseInt(hex.slice(1), 16);
+    return 'rgba(' + ((n>>16)&255) + ',' + ((n>>8)&255) + ',' + (n&255) + ',' + a + ')';
+  }
+
+  /* ---------------- Audio (Web Audio API [4]) ---------------- */
+  var ac=null, master=null, comp=null, noiseBuf=null, muted=false;
+  function ensureAudio(){
+    if(!ac){
+      var C = window.AudioContext || window.webkitAudioContext;
+      if(!C) return null;
+      ac = new C();
+      comp = ac.createDynamicsCompressor();
+      master = ac.createGain();
+      master.gain.value = muted ? 0 : 0.9;
+      master.connect(comp); comp.connect(ac.destination);
+    }
+    if(ac.state === 'suspended'){ ac.resume(); }
+    return ac;
+  }
+  function tone(freq, dur, type, vol, delay, endFreq){
+    if(!ac) return;
+    var t = ac.currentTime + (delay||0);
+    var o = ac.createOscillator(), g = ac.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    if(endFreq) o.frequency.exponentialRampToValueAtTime(endFreq, t+dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t+0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t+dur+0.03);
+  }
+  function noise(dur, vol, ftype, f0, f1, delay){
+    if(!ac) return;
+    if(!noiseBuf){
+      var len = ac.sampleRate*2;
+      noiseBuf = ac.createBuffer(1, len, ac.sampleRate);
+      var d = noiseBuf.getChannelData(0);
+      for(var i=0;i<len;i++) d[i] = Math.random()*2-1;
+    }
+    var t = ac.currentTime + (delay||0);
+    var s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
+    var f = ac.createBiquadFilter(); f.type = ftype;
+    f.frequency.setValueAtTime(f0, t);
+    if(f1) f.frequency.exponentialRampToValueAtTime(f1, t+dur);
+    var g = ac.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    s.connect(f); f.connect(g); g.connect(master);
+    s.start(t, Math.random()); s.stop(t+dur+0.03);
+  }
+  function sfxDown(i){ tone(300 + i*55, 0.07, 'triangle', 0.28); }
+  function sfxBeep(){ tone(660, 0.12, 'square', 0.18); }
+  function sfxGo(){ tone(1320, 0.28, 'square', 0.22); }
+  function sfxTick(){ tone(880, 0.04, 'sine', 0.2); }
+  function sfxHide(){ tone(220, 0.35, 'sine', 0.4, 0, 110); }
+  function sfxRelease(){ tone(500, 0.05, 'triangle', 0.2); }
+  function sfxReveal(k){ tone(520 + k*55, 0.1, 'triangle', 0.26); }
+  function sfxBest(){ [660, 880, 1320].forEach(function(f, i){ tone(f, 0.18, 'triangle', 0.25, i*0.09); }); }
+  function sfxWorst(){ tone(110, 0.7, 'sine', 0.9, 0, 40); noise(0.5, 0.5, 'lowpass', 3000, 150); }
+
+  /* ---------------- ゲーム状態 ---------------- */
+  // phase: wait(全員が指を置くのを待つ) / countdown / run / done
+  var G = { n:4, phase:'wait', target:0, startT:0, pads:[], padEls:[], tids:[], raf:0, hidden:false };
+  var selectedN = 4;
+
+  function show(id){
+    document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+    $(id).classList.add('active');
+  }
+  function setMsg(t){ $('msg').textContent = t || ''; }
+  function setTimer(text, cls){
+    var t = $('timer'); t.textContent = text; t.className = 'timer' + (cls ? ' ' + cls : '');
+  }
+  function clearTimers(){
+    G.tids.forEach(function(id){ clearTimeout(id); });
+    G.tids = [];
+    if(G.raf){ cancelAnimationFrame(G.raf); G.raf = 0; }
+  }
+  function later(fn, ms){ G.tids.push(setTimeout(fn, ms)); }
+
+  function buildPads(){
+    var n = G.n, lay = padLayout(n), box = $('pads');
+    box.innerHTML = '';
+    G.pads = []; G.padEls = [];
+    for(var i=0;i<n;i++){
+      var el = document.createElement('div');
+      el.className = 'pad' + ((lay.wideLast && i === n-1) ? ' wide' : '');
+      el.dataset.i = i;
+      el.style.setProperty('--c', COLORS[i]);
+      el.style.setProperty('--c-soft', hexToRgba(COLORS[i], 0.1));
+      el.style.setProperty('--c-line', hexToRgba(COLORS[i], 0.55));
+      el.innerHTML = '<div class="pnum">' + (i+1) + '</div><div class="pst"></div>';
+      box.appendChild(el);
+      G.padEls.push(el);
+      G.pads.push({ down:false, pid:null, rel:null, timedOut:false });
+    }
+  }
+
+  function paintPad(i){
+    var p = G.pads[i], el = G.padEls[i], st = '';
+    if(p.rel !== null) st = '離した';
+    else if(p.down) st = (G.phase === 'run') ? '押し続けて' : 'OK';
+    else st = '指を置いて';
+    el.classList.toggle('down', p.down);
+    el.classList.toggle('done', p.rel !== null);
+    el.querySelector('.pst').textContent = st;
+  }
+  function paintAll(){ for(var i=0;i<G.pads.length;i++) paintPad(i); }
+
+  function waitMsg(){
+    var left = G.pads.filter(function(p){ return !p.down; }).length;
+    setMsg('全員、自分のパッドに指を置いて(あと' + left + '人)');
+  }
+
+  function newRound(){
+    clearTimers();
+    G.phase = 'wait';
+    G.hidden = false;
+    G.target = drawTarget(randInt);     // 一様ランダム。ラウンド中は固定(やり直しで引き直せない)
+    $('tgtVal').textContent = G.target;
+    buildPads();
+    paintAll();
+    setTimer('--');
+    waitMsg();
+  }
+
+  /* ---------------- 進行 ---------------- */
+  function allDown(){ return G.pads.every(function(p){ return p.down; }); }
+  function allReleased(){ return G.pads.every(function(p){ return p.rel !== null; }); }
+
+  function startCountdown(){
+    G.phase = 'countdown';
+    setMsg('そのまま指を置いたまま…');
+    var steps = ['3','2','1'];
+    steps.forEach(function(s, k){
+      later(function(){ setTimer(s, 'count'); sfxBeep(); vibrate(12); }, k*1000);
+    });
+    later(startRun, 3000);
+  }
+  function cancelCountdown(){
+    clearTimers();
+    G.phase = 'wait';
+    setTimer('--');
+    paintAll();
+    setMsg('指が離れた。もう一度、全員置いて');
+  }
+
+  function startRun(){
+    G.phase = 'run';
+    G.hidden = false;
+    G.startT = performance.now();
+    setTimer('0.00');
+    setMsg('目標の瞬間に指を離せ');
+    sfxGo(); vibrate(40);
+    paintAll();
+    G.raf = requestAnimationFrame(loop);
+    [1,2,3,4].forEach(function(s){ later(sfxTick, s*1000); });   // 見えている間だけ秒の合図
+    later(hideTimer, HIDE_MS);
+    later(timeoutAll, LIMIT_MS);
+  }
+
+  function loop(){
+    if(G.phase !== 'run') return;
+    var el = performance.now() - G.startT;
+    if(el >= HIDE_MS){ hideTimer(); }
+    else { setTimer((el/1000).toFixed(2)); G.raf = requestAnimationFrame(loop); }
+  }
+
+  // 5秒を過ぎたら表示を消す。以降は時間と相関する音・動きを一切出さない(静止した表示のみ)
+  function hideTimer(){
+    if(G.phase !== 'run' || G.hidden) return;
+    G.hidden = true;
+    if(G.raf){ cancelAnimationFrame(G.raf); G.raf = 0; }
+    setTimer('?.??', 'hidden');
+    setMsg('ここからは感覚だけで離せ');
+    sfxHide();
+  }
+
+  function timeoutAll(){
+    if(G.phase !== 'run') return;
+    G.pads.forEach(function(p, i){
+      if(p.rel === null){ p.rel = LIMIT_MS; p.timedOut = true; p.down = false; paintPad(i); }
+    });
+    finish();
+  }
+
+  function finish(){
+    if(G.phase === 'done') return;
+    clearTimers();
+    G.phase = 'done';
+    vibrate(30);
+    setMsg('全員離した');
+    setTimeout(showResult, 700);
+  }
+
+  /* ---------------- 入力 (Pointer Events [1]) ---------------- */
+  var padsEl = $('pads');
+  padsEl.addEventListener('pointerdown', function(e){
+    var el = e.target.closest ? e.target.closest('.pad') : null;
+    if(!el) return;
+    e.preventDefault();
+    var i = parseInt(el.dataset.i, 10), p = G.pads[i];
+    if(!p || p.down || p.rel !== null) return;
+    if(G.phase !== 'wait' && G.phase !== 'countdown') return;
+    ensureAudio();
+    p.down = true; p.pid = e.pointerId;
+    try{ el.setPointerCapture(e.pointerId); }catch(err){}
+    sfxDown(i); vibrate(8);
+    paintPad(i);
+    if(G.phase === 'wait'){
+      if(allDown()) startCountdown(); else waitMsg();
+    }
+  });
+
+  function onUp(e){
+    var el = e.target.closest ? e.target.closest('.pad') : null;
+    if(!el) return;
+    var i = parseInt(el.dataset.i, 10), p = G.pads[i];
+    if(!p || !p.down || p.pid !== e.pointerId) return;
+    var now = performance.now();           // 離した瞬間をその場で記録
+    p.down = false; p.pid = null;
+    if(G.phase === 'run'){
+      p.rel = now - G.startT;
+      sfxRelease(); vibrate(15);
+      paintPad(i);
+      if(allReleased()) finish();
+    } else if(G.phase === 'countdown'){
+      cancelCountdown();
+    } else {
+      paintPad(i);
+      waitMsg();
+    }
+  }
+  padsEl.addEventListener('pointerup', onUp);
+  padsEl.addEventListener('pointercancel', onUp);
+  padsEl.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+
+  /* ---------------- 結果 ---------------- */
+  function fmtSec(ms){ return (ms/1000).toFixed(3); }
+  function fmtDiff(ms){
+    var s = (Math.abs(ms)/1000).toFixed(3);
+    if(ms > 0) return '+' + s + '<br>遅い';
+    if(ms < 0) return '−' + s + '<br>早い';
+    return '±0.000<br>ぴったり';
+  }
+
+  var revealTids = [];
+  function clearReveal(){ revealTids.forEach(clearTimeout); revealTids = []; }
+
+  function showResult(){
+    var releases = G.pads.map(function(p){ return p.rel; });
+    var res = scoreRound(G.target, releases);
+    $('resTarget').textContent = G.target.toFixed(3);
+    var list = $('resList'); list.innerHTML = '';
+    $('resVerdict').textContent = '';
+    $('resButtons').classList.remove('show');
+    show('screen-result');
+
+    var rowEls = res.rows.map(function(r){
+      var p = G.pads[r.player];
+      var d = document.createElement('div');
+      d.className = 'row' + (r.best ? ' best' : '') + (r.worst ? ' worst' : '');
+      var badge = r.best ? '🏆' : (r.worst ? '🍺' : '');
+      var time = p.timedOut ? '離さず' : fmtSec(r.t);
+      var df = p.timedOut ? '上限' + (LIMIT_MS/1000) + '秒<br>で終了' : fmtDiff(r.diff);
+      d.innerHTML =
+        '<div class="rk">' + r.rank + '</div>' +
+        '<div class="chip" style="background:' + COLORS[r.player] + '">P' + (r.player+1) + '</div>' +
+        '<div class="tm"><b>' + time + '</b>' + (p.timedOut ? '' : '<small>秒</small>') + '</div>' +
+        '<div class="df">' + df + '</div>' +
+        '<div class="badge">' + badge + '</div>';
+      list.appendChild(d);
+      return d;
+    });
+
+    // 1位から順に表示。最下位だけ間を置いて見せる
+    clearReveal();
+    var t = 500;
+    res.rows.forEach(function(r, k){
+      if(r.worst && !(k > 0 && res.rows[k-1].worst)) t += 1100;   // 最下位の直前にためる
+      (function(el, row, kk, at){
+        revealTids.push(setTimeout(function(){
+          el.classList.add('show');
+          if(row.worst) sfxWorst(); else if(row.best) sfxBest(); else sfxReveal(kk);
+          if(row.worst) vibrate([60,30,120]);
+        }, at));
+      })(rowEls[k], r, k, t);
+      t += 650;
+    });
+    revealTids.push(setTimeout(function(){
+      var v = $('resVerdict');
+      if(res.allTie){
+        v.style.color = 'var(--text)'; v.textContent = '全員同点。もう一度!';
+      } else {
+        var losers = res.rows.filter(function(r){ return r.worst; })
+          .map(function(r){ return 'P' + (r.player+1); }).join('・');
+        v.style.color = 'var(--danger)'; v.textContent = losers + ' が飲む。';
+      }
+      $('resButtons').classList.add('show');
+    }, t + 200));
+  }
+
+  // 結果リストをタップすると演出をスキップして全表示
+  $('resList').addEventListener('click', function(){
+    var rows = document.querySelectorAll('#resList .row');
+    var any = false;
+    rows.forEach(function(r){ if(!r.classList.contains('show')){ any = true; } });
+    if(!any) return;
+    clearReveal();
+    rows.forEach(function(r){ r.classList.add('show'); });
+    var losers = [];
+    rows.forEach(function(r){
+      if(r.classList.contains('worst')) losers.push(r.querySelector('.chip').textContent);
+    });
+    var v = $('resVerdict');
+    if(losers.length){ v.style.color = 'var(--danger)'; v.textContent = losers.join('・') + ' が飲む。'; }
+    else { v.style.color = 'var(--text)'; v.textContent = '全員同点。もう一度!'; }
+    $('resButtons').classList.add('show');
+  });
+
+  /* ---------------- ボタン ---------------- */
+  function startRound(){
+    clearReveal();
+    show('screen-play');
+    newRound();
+  }
+  $('sizeRow').addEventListener('click', function(e){
+    var b = e.target.closest ? e.target.closest('.size-btn') : null;
+    if(!b) return;
+    selectedN = parseInt(b.dataset.n, 10);
+    document.querySelectorAll('.size-btn').forEach(function(x){ x.classList.toggle('sel', x === b); });
+  });
+  $('startBtn').addEventListener('click', function(){
+    ensureAudio();
+    G.n = selectedN;
+    startRound();
+  });
+  $('againBtn').addEventListener('click', function(){ ensureAudio(); startRound(); });
+  $('setupBtn').addEventListener('click', function(){ clearReveal(); show('screen-setup'); });
+  $('backBtn').addEventListener('click', function(){ clearTimers(); G.phase = 'wait'; show('screen-setup'); });
+  $('muteBtn').addEventListener('click', function(){
+    muted = !muted;
+    $('muteBtn').textContent = muted ? '🔇' : '🔊';
+    if(master) master.gain.value = muted ? 0 : 0.9;
+  });
+})();
+</script>
+</body>
+</html>

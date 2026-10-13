@@ -65,6 +65,9 @@
     padding:16px;line-height:1.7;
   }
 
+  .section-head{margin:34px 0 0;font-size:13px;font-weight:900;display:flex;align-items:center;gap:8px;}
+  .badge-dev{font-size:10.5px;font-weight:900;color:#E8C24A;border:1px solid #E8C24A;border-radius:6px;padding:1px 6px;}
+  .section-sub{color:var(--text-muted);font-size:12px;margin-top:6px;line-height:1.7;}
   .footer-note{margin-top:30px;color:var(--text-muted);font-size:11.5px;text-align:center;line-height:1.7;}
 </style>
 </head>
@@ -76,6 +79,12 @@
   <div class="game-list" id="gameList"></div>
   <div class="empty-note" id="emptyNote" style="display:none;">
     まだゲームが登録されていません。games.js にゲームを追加してください。
+  </div>
+
+  <div id="onlineSection" style="display:none;">
+    <div class="section-head">📱 オンライン版 <span class="badge-dev">開発中</span></div>
+    <div class="section-sub">各自のスマホで遊ぶバージョン。ホストがQRコードを見せて、みんなが読み取って参加します。上の安定版とは別物で、動作が変わることがあります。</div>
+    <div class="game-list" id="onlineList"></div>
   </div>
 
   <div class="footer-note">新しいゲームは games.js に追記するだけで、ここに自動で並びます。</div>
@@ -129,6 +138,35 @@
     a.appendChild(icon);
     a.appendChild(info);
     a.appendChild(chevron);
+    list.appendChild(a);
+  });
+})();
+
+// オンライン版(開発中)の一覧。安定版の描画とは独立
+(function(){
+  var online = (window.ONLINE_GAMES || []);
+  if(!online.length) return;
+  function hexToRgba(hex, alpha){
+    var h = hex.replace('#','');
+    return 'rgba('+parseInt(h.substring(0,2),16)+','+parseInt(h.substring(2,4),16)+','+parseInt(h.substring(4,6),16)+','+alpha+')';
+  }
+  document.getElementById('onlineSection').style.display = 'block';
+  var list = document.getElementById('onlineList');
+  online.forEach(function(g){
+    var a = document.createElement('a');
+    a.className = 'game-card';
+    a.href = g.file;
+    var icon = document.createElement('div');
+    icon.className = 'game-icon';
+    icon.textContent = g.emoji || '🎮';
+    icon.style.background = hexToRgba(g.accent || '#E8C24A', 0.16);
+    icon.style.color = g.accent || '#E8C24A';
+    var info = document.createElement('div'); info.className = 'game-info';
+    var title = document.createElement('div'); title.className = 'game-title'; title.textContent = g.title;
+    var tag = document.createElement('div'); tag.className = 'game-tagline'; tag.textContent = g.tagline || '';
+    info.appendChild(title); info.appendChild(tag);
+    var chevron = document.createElement('div'); chevron.className = 'game-chevron'; chevron.textContent = '›';
+    a.appendChild(icon); a.appendChild(info); a.appendChild(chevron);
     list.appendChild(a);
   });
 })();

@@ -285,7 +285,6 @@
     "全員でこの中の誰かを指差せ。一番多く指された人がアウト候補",
     "最後にテーブルを軽く叩いた人がアウト",
     "声を出さずに指で「5」を作れ。一番遅い人がアウト候補",
-    "全員で同時に片足立ちしろ。先に崩れた人がアウト候補",
     "隣の人とジャンケン、負けたら一口"
   ];
 
@@ -301,14 +300,14 @@
     commonWord: null,
     timerId: null,
     remaining: 0,
-    happeningTO: null
+    happeningTOs: []
   };
 
   // ---------- helpers ----------
   function shuffle(arr){
     var a = arr.slice();
     for(var i=a.length-1;i>0;i--){
-      var j = Math.floor(Math.random()*(i+1));
+      var j = randInt(i+1);
       var t=a[i]; a[i]=a[j]; a[j]=t;
     }
     return a;
@@ -453,7 +452,7 @@
       }
     }, 1000);
     if(state.difficulty === 'extreme'){
-      scheduleHappening();
+      scheduleHappenings();
     }
   }
   function updateTimerDisplay(){
@@ -468,7 +467,7 @@
     }
   }
   function finishTimer(){
-    clearTimeout(state.happeningTO);
+    clearHappenings();
     vibrate([200,100,200,100,400]);
     var seinoWordEl = el('seinoWord');
     seinoWordEl.classList.remove('revealed');
@@ -486,20 +485,47 @@
     el('seinoWord').classList.toggle('revealed');
   });
 
-  function scheduleHappening(){
-    clearTimeout(state.happeningTO);
-    var delay = (25 + Math.random()*30) * 1000;
-    state.happeningTO = setTimeout(function(){
-      if(!el('screen-play').classList.contains('active')) return;
-      var prompt = HAPPENINGS[Math.floor(Math.random()*HAPPENINGS.length)];
-      el('happeningPrompt').textContent = prompt;
-      el('happeningOverlay').classList.add('show');
-      vibrate([120,80,120,80,220]);
-    }, delay);
+  // ハプニングは1ゲームにつき1〜2回。回数・発生時刻・内容はすべて一様乱数(crypto)で決める。
+  // 参考: MDN Crypto.getRandomValues https://developer.mozilla.org/en-US/docs/Web/API/Crypto/getRandomValues
+  function randInt(n){ // [0,n) の一様整数(棄却サンプリングで剰余の偏りを避ける)
+    var range = 4294967296, limit = range - (range % n), buf = new Uint32Array(1);
+    do { crypto.getRandomValues(buf); } while(buf[0] >= limit);
+    return buf[0] % n;
   }
+  var HAPPENING_MARGIN = 15;   // 開始・終了からこの秒数以内には出さない
+  var HAPPENING_MIN_GAP = 20;  // 2回出す場合の最小間隔(秒)
+  function planHappenings(totalSec){
+    var lo = HAPPENING_MARGIN, hi = totalSec - HAPPENING_MARGIN; // 出せる時刻の範囲 [lo,hi]
+    if(hi <= lo) return [];
+    var count = 1 + randInt(2);                                   // 1回 or 2回(各1/2)
+    if(count === 2 && (hi - lo) < HAPPENING_MIN_GAP) count = 1;   // 短すぎるゲームでは1回
+    var times = [];
+    if(count === 1){
+      times.push(lo + randInt(hi - lo + 1));
+    } else {
+      // 2点を範囲内から一様に選び、間隔が足りなければ選び直す(棄却法・補正なし)
+      do {
+        times = [lo + randInt(hi - lo + 1), lo + randInt(hi - lo + 1)].sort(function(x,y){ return x-y; });
+      } while(times[1] - times[0] < HAPPENING_MIN_GAP);
+    }
+    // 内容は重複しないよう、Fisher–Yates で並べ替えた先頭から取る
+    var texts = shuffle(HAPPENINGS);
+    return times.map(function(t, i){ return { at: t, text: texts[i] }; });
+  }
+  function scheduleHappenings(){
+    state.happeningTOs.forEach(clearTimeout);
+    state.happeningTOs = planHappenings(state.minutes * 60).map(function(h){
+      return setTimeout(function(){
+        if(!el('screen-play').classList.contains('active')) return;
+        el('happeningPrompt').textContent = h.text;
+        el('happeningOverlay').classList.add('show');
+        vibrate([120,80,120,80,220]);
+      }, h.at * 1000);
+    });
+  }
+  function clearHappenings(){ state.happeningTOs.forEach(clearTimeout); state.happeningTOs = []; }
   el('happeningDismiss').addEventListener('click', function(){
     el('happeningOverlay').classList.remove('show');
-    if(state.remaining > 0){ scheduleHappening(); }
   });
 
   // ---------- flow ----------
@@ -522,7 +548,7 @@
       secondaryBtn.style.display = 'none';
     } else if(current === 'screen-play'){
       clearInterval(state.timerId);
-      clearTimeout(state.happeningTO);
+      clearHappenings();
       finishTimer();
     } else if(current === 'screen-end'){
       show('screen-rules');

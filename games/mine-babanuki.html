@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>地雷ババ引き</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-base:#14121A;
+    --bg-surface:#1E1B26;
+    --bg-raised:#282330;
+    --line:#3A3444;
+    --text:#F3F1EE;
+    --text-muted:#9A93A6;
+    --accent:#5FD0A8;
+    --accent-ink:#06261B;
+    --danger:#FF5A45;
+    --radius-card:18px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;overscroll-behavior:none;background:var(--bg-base);}
+  body{
+    color:var(--text);
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    -webkit-tap-highlight-color:transparent;
+    overflow:hidden;
+  }
+  h1,h2,h3{margin:0;}
+  button{font-family:inherit;cursor:pointer;border:none;touch-action:manipulation;}
+
+  /* stage = 演出で「画面ごと」潰す対象 */
+  #stage{width:100%;height:100vh;height:100dvh;display:flex;justify-content:center;overflow:hidden;transform-origin:50% 50%;}
+  #app{width:100%;max-width:460px;height:100%;display:flex;flex-direction:column;position:relative;}
+
+  .screen{display:none;flex-direction:column;flex:1;min-height:0;overflow-y:auto;animation:fadeIn .3s ease;}
+  .screen.active{display:flex;}
+  @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+
+  /* ---------- setup ---------- */
+  #screen-setup{padding:28px 22px 0;justify-content:center;}
+  .eyebrow{color:var(--text-muted);font-size:12px;letter-spacing:.05em;margin-bottom:8px;}
+  .title{font-size:28px;font-weight:900;}
+  .tagline{color:var(--text-muted);font-size:13.5px;margin-top:12px;line-height:1.8;}
+  .section-label{font-size:12px;color:var(--text-muted);margin:26px 0 10px;}
+  .size-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+  .size-btn{
+    background:var(--bg-surface);color:var(--text);border:1.5px solid var(--line);border-radius:14px;
+    padding:14px 6px;text-align:center;transition:border-color .15s, background .15s;
+  }
+  .size-btn .big{display:block;font-size:20px;font-weight:900;}
+  .size-btn .small{display:block;font-size:11px;color:var(--text-muted);margin-top:3px;}
+  .size-btn.sel{border-color:var(--accent);background:rgba(95,208,168,.1);}
+  .size-btn.sel .big{color:var(--accent);}
+  .rule-card{
+    background:var(--bg-surface);border:1px solid var(--line);border-radius:var(--radius-card);
+    padding:14px 18px;margin-top:22px;
+  }
+  .rule-row{display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);}
+  .rule-row:last-child{border-bottom:none;}
+  .rule-num{
+    width:22px;height:22px;border-radius:6px;background:var(--bg-raised);
+    color:var(--text-muted);font-size:12px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  }
+  .rule-text{font-size:13px;line-height:1.6;}
+  .notice{font-size:11px;color:var(--text-muted);margin-top:12px;line-height:1.6;}
+  .bottombar{padding:16px 22px calc(16px + env(safe-area-inset-bottom));}
+  .btn-primary{
+    width:100%;background:var(--accent);color:var(--accent-ink);border-radius:14px;padding:16px;
+    font-size:15.5px;font-weight:900;
+  }
+  .btn-ghost{
+    width:100%;background:transparent;color:var(--text-muted);border:1px solid var(--line);
+    border-radius:14px;padding:13px;font-size:13.5px;font-weight:700;margin-top:9px;
+  }
+
+  /* ---------- play ---------- */
+  #screen-play{padding:18px 16px 0;overflow-y:auto;}
+  .hud{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    background:var(--bg-surface);border:1px solid var(--line);border-radius:14px;padding:10px 12px;
+  }
+  .lcd-wrap{text-align:center;}
+  .lcd{
+    font-family:'Courier New',monospace;font-weight:900;font-size:26px;letter-spacing:3px;
+    color:#ff3b30;background:#1a0505;border-radius:6px;padding:2px 10px;
+    text-shadow:0 0 8px rgba(255,59,48,.65);min-width:78px;
+    box-shadow:inset 0 2px 6px rgba(0,0,0,.7);
+  }
+  .lcd-label{font-size:10.5px;color:var(--text-muted);margin-top:4px;}
+  .face{
+    width:52px;height:52px;border-radius:12px;font-size:28px;line-height:1;
+    background:linear-gradient(145deg,#4a4357,#322c3d);
+    box-shadow:inset 2px 2px 0 rgba(255,255,255,.18), inset -2px -2px 0 rgba(0,0,0,.45);
+  }
+  .face:active{transform:scale(.94);}
+
+  .board-frame{
+    margin:16px auto 0;width:100%;max-width:430px;
+    background:var(--bg-surface);border:1px solid var(--line);border-radius:16px;padding:10px;
+  }
+  #board{display:grid;gap:5px;width:100%;aspect-ratio:1/1;}
+  .cell{
+    border-radius:7px;padding:0;position:relative;overflow:hidden;
+    background:linear-gradient(145deg,#4f4860,#342e40);
+    box-shadow:inset 2px 2px 0 rgba(255,255,255,.2), inset -2px -2px 0 rgba(0,0,0,.45), 0 1px 0 rgba(0,0,0,.4);
+    transition:transform .08s;
+  }
+  .cell:active:not(:disabled){transform:scale(.93);}
+  .cell.open{
+    background:#17141d;cursor:default;
+    box-shadow:inset 1px 1px 0 rgba(0,0,0,.6), inset -1px -1px 0 rgba(255,255,255,.05);
+    animation:openPop .24s ease;
+  }
+  @keyframes openPop{0%{transform:scale(.82);filter:brightness(2);}100%{transform:scale(1);filter:brightness(1);}}
+  .cell.mine{
+    background:radial-gradient(circle at 50% 45%,#ff8a5c,#d3321f 70%);
+    box-shadow:0 0 0 2px #ffb59f, 0 0 24px rgba(255,90,69,.9);
+    animation:mineHit .5s ease;
+  }
+  @keyframes mineHit{0%{transform:scale(1.5);}60%{transform:scale(.92);}100%{transform:scale(1);}}
+  .cell.mine svg{width:78%;height:78%;position:absolute;left:11%;top:11%;}
+
+  .status{text-align:center;font-size:14px;font-weight:700;margin:16px 0 4px;min-height:22px;}
+  .status.warn{color:#FF9F6B;}
+  .status.over{color:var(--danger);font-size:17px;}
+  .hint{text-align:center;color:var(--text-muted);font-size:12px;min-height:18px;}
+
+  #result{display:none;padding:14px 4px calc(18px + env(safe-area-inset-bottom));animation:fadeIn .5s ease;}
+  #result.show{display:block;}
+
+  /* ---------- mute ---------- */
+  #muteBtn{
+    position:fixed;top:12px;right:12px;z-index:60;width:38px;height:38px;border-radius:10px;
+    background:var(--bg-surface);color:var(--text);border:1px solid var(--line);font-size:16px;
+  }
+
+  /* ---------- 確定演出オーバーレイ ---------- */
+  #fx{position:fixed;inset:0;z-index:50;display:none;overflow:hidden;background:transparent;}
+  #fx.on{display:block;}
+  #pulse{position:absolute;inset:0;opacity:0;pointer-events:none;
+    background:radial-gradient(circle at 50% 50%,rgba(160,120,255,.6),rgba(0,0,0,0) 55%);}
+  #spark{
+    position:absolute;left:50%;top:50%;width:100vw;height:3px;opacity:0;
+    transform:translate(-50%,-50%);border-radius:3px;background:#fff;
+    box-shadow:0 0 18px 6px rgba(190,160,255,.9);
+  }
+  #flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;}
+  #pc{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+  .ring{
+    position:absolute;left:50%;top:50%;width:60px;height:60px;margin:-30px 0 0 -30px;border-radius:50%;
+    border:4px solid rgba(225,205,255,.95);box-shadow:0 0 30px rgba(170,130,255,.8);opacity:0;pointer-events:none;
+  }
+  #boom{
+    position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;
+    font-size:56px;font-weight:900;letter-spacing:.06em;color:#fff;opacity:0;pointer-events:none;
+    text-shadow:0 0 24px rgba(170,130,255,.95), 0 0 60px rgba(255,90,69,.8);
+  }
+</style>
+</head>
+<body>
+
+<!--
+  参考文献 / References
+  [1] ブラックアウト演出(CRT消灯風フラッシュ、通称「プチュン」)
+      https://scrapbox.io/0b5vr/%E3%83%96%E3%83%A9%E3%83%83%E3%82%AF%E3%82%A2%E3%82%A6%E3%83%88%E6%BC%94%E5%87%BA
+  [2] フリーズ演出
+      https://scrapbox.io/0b5vr/%E3%83%95%E3%83%AA%E3%83%BC%E3%82%BA%E6%BC%94%E5%87%BA
+  [3] パチ7「ミリオンゴッド 神々の凱旋|GOD揃いの確率・期待値」(フリーズ=「プチュン!」)
+      https://pachiseven.jp/machines/4454/cutout/3
+  [4] MDN: Crypto.getRandomValues()
+      https://developer.mozilla.org/en-US/docs/Web/API/Crypto/getRandomValues
+  [5] MDN: Web Animations API
+      https://developer.mozilla.org/en-US/docs/Web/API/Web_Animations_API
+  [6] MDN: Web Audio API
+      https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API
+  ※ 演出の「概念」([1]-[3])のみを参照した。映像・音声・図柄などの素材は一切使用せず、
+    すべてこのファイル内でオリジナルに生成している(音は Web Audio による合成)。
+-->
+
+<button id="muteBtn" aria-label="音のオン/オフ">🔊</button>
+
+<div id="stage">
+<div id="app">
+
+  <!-- SETUP -->
+  <div class="screen active" id="screen-setup">
+    <div class="eyebrow">MINE BABANUKI</div>
+    <div class="title">地雷ババ引き</div>
+    <div class="tagline">安全なマスをめくっていこう。<br>地雷を引いた人が飲む。</div>
+
+    <div class="section-label">盤面のサイズ</div>
+    <div class="size-row" id="sizeRow">
+      <button class="size-btn" data-n="4"><span class="big">4×4</span><span class="small">16マス</span></button>
+      <button class="size-btn sel" data-n="5"><span class="big">5×5</span><span class="small">25マス</span></button>
+      <button class="size-btn" data-n="6"><span class="big">6×6</span><span class="small">36マス</span></button>
+    </div>
+
+    <div class="rule-card">
+      <div class="rule-row"><div class="rule-num">1</div><div class="rule-text">順番に、マスを1つずつ選んでめくる</div></div>
+      <div class="rule-row"><div class="rule-num">2</div><div class="rule-text">地雷は1つだけ。位置は毎回完全ランダム</div></div>
+      <div class="rule-row"><div class="rule-num">3</div><div class="rule-text">地雷を引いた人が飲む</div></div>
+    </div>
+    <div class="notice">※ 地雷を引くと、強い光と大きな音の演出があります。</div>
+
+    <div class="bottombar" style="padding-left:0;padding-right:0;">
+      <button class="btn-primary" id="startBtn">はじめる</button>
+    </div>
+  </div>
+
+  <!-- PLAY -->
+  <div class="screen" id="screen-play">
+    <div class="hud">
+      <div class="lcd-wrap"><div class="lcd" id="lcdMine">001</div><div class="lcd-label">地雷</div></div>
+      <button class="face" id="faceBtn" aria-label="最初からやり直す">🙂</button>
+      <div class="lcd-wrap"><div class="lcd" id="lcdLeft">000</div><div class="lcd-label">のこり安全マス</div></div>
+    </div>
+
+    <div class="board-frame"><div id="board"></div></div>
+
+    <div class="status" id="status"></div>
+    <div class="hint" id="hint"></div>
+
+    <div id="result">
+      <button class="btn-primary" id="againBtn">もう一度</button>
+      <button class="btn-ghost" id="backBtn">サイズを変える</button>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- 確定演出レイヤー -->
+<div id="fx">
+  <div id="pulse"></div>
+  <canvas id="pc"></canvas>
+  <div id="spark"></div>
+  <div id="flash"></div>
+  <div id="boom">爆発。</div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* =========================================================
+   * 公平性について
+   *  地雷の位置は暗号論的乱数 (Crypto.getRandomValues [4]) と
+   *  棄却法 (剰余バイアスの除去) で一様ランダムに決める。
+   *  盤面や順序に恣意的な偏り・補正・調整は一切入れていない。
+   *  (演出の長さ・粒子などの見た目にだけ Math.random を使用)
+   * ========================================================= */
+  function randInt(n){
+    if(window.crypto && window.crypto.getRandomValues){
+      var range = 0x100000000;
+      var limit = range - (range % n);   // これ以上は棄却 → 一様性を保つ
+      var buf = new Uint32Array(1);
+      do{ window.crypto.getRandomValues(buf); }while(buf[0] >= limit);
+      return buf[0] % n;
+    }
+    return Math.floor(Math.random()*n);
+  }
+
+  function $(id){ return document.getElementById(id); }
+  function vibrate(p){ try{ if(navigator.vibrate) navigator.vibrate(p); }catch(e){} }
+  function pad3(n){ n = Math.max(0, n); return ('000'+n).slice(-3); }
+  function wait(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+
+  /* ---------------- Audio (Web Audio API [6]) ---------------- */
+  var ac=null, master=null, comp=null, noiseBuf=null, muted=false;
+  function ensureAudio(){
+    if(!ac){
+      var C = window.AudioContext || window.webkitAudioContext;
+      if(!C) return null;
+      ac = new C();
+      comp = ac.createDynamicsCompressor();
+      master = ac.createGain();
+      master.gain.value = muted ? 0 : 0.9;
+      master.connect(comp); comp.connect(ac.destination);
+    }
+    if(ac.state === 'suspended'){ ac.resume(); }
+    return ac;
+  }
+  function tone(freq, dur, type, vol, delay, endFreq){
+    if(!ac) return;
+    var t = ac.currentTime + (delay||0);
+    var o = ac.createOscillator(), g = ac.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    if(endFreq) o.frequency.exponentialRampToValueAtTime(endFreq, t+dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t+0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t+dur+0.03);
+  }
+  function getNoise(){
+    if(!noiseBuf){
+      var len = ac.sampleRate*2;
+      noiseBuf = ac.createBuffer(1, len, ac.sampleRate);
+      var d = noiseBuf.getChannelData(0);
+      for(var i=0;i<len;i++) d[i] = Math.random()*2-1;
+    }
+    return noiseBuf;
+  }
+  function noise(dur, vol, ftype, f0, f1, delay){
+    if(!ac) return;
+    var t = ac.currentTime + (delay||0);
+    var s = ac.createBufferSource(); s.buffer = getNoise(); s.loop = true;
+    var f = ac.createBiquadFilter(); f.type = ftype;
+    f.frequency.setValueAtTime(f0, t);
+    if(f1) f.frequency.exponentialRampToValueAtTime(f1, t+dur);
+    var g = ac.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    s.connect(f); f.connect(g); g.connect(master);
+    s.start(t, Math.random()); s.stop(t+dur+0.03);
+  }
+
+  function sfxSafe(progress){
+    if(!ac) return;
+    var f = 520 * Math.pow(1.5, progress);        // 進むほど音が高くなり緊張感が増す
+    tone(f, 0.09, 'triangle', 0.28);
+    noise(0.025, 0.18, 'highpass', 2500);
+  }
+  // プチュン: 「プ」(低い打音) + 「チュン」(高→低のチャープ) + CRT放電風のヒス
+  function sfxPuchun(){
+    if(!ac) return;
+    tone(180, 0.07, 'sine', 0.8, 0, 50);
+    noise(0.03, 0.7, 'highpass', 3000, null, 0.045);
+    tone(3600, 0.12, 'sine', 0.38, 0.05, 700);
+    tone(1900, 0.18, 'triangle', 0.16, 0.07, 300);
+    noise(0.35, 0.13, 'highpass', 6000, 2000, 0.1);
+  }
+  function sfxBeat(){
+    tone(70, 0.14, 'sine', 0.9, 0, 38);
+    tone(62, 0.16, 'sine', 0.65, 0.17, 34);
+  }
+  // 暗転中: 低音のうねり + ノイズライザー。爆発の直前0.1秒だけ完全な無音を作る
+  function sfxDark(ms){
+    if(!ac) return;
+    var t = ac.currentTime, d = ms/1000;
+    var o = ac.createOscillator(), og = ac.createGain(), lp = ac.createBiquadFilter();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(34, t); o.frequency.exponentialRampToValueAtTime(110, t+d);
+    lp.type = 'lowpass'; lp.frequency.value = 220;
+    og.gain.setValueAtTime(0.0001, t);
+    og.gain.exponentialRampToValueAtTime(0.3, t+d-0.15);
+    og.gain.linearRampToValueAtTime(0.0001, t+d-0.1);
+    o.connect(lp); lp.connect(og); og.connect(master);
+    o.start(t); o.stop(t+d+0.05);
+
+    var s = ac.createBufferSource(); s.buffer = getNoise(); s.loop = true;
+    var bp = ac.createBiquadFilter(), ng = ac.createGain();
+    bp.type = 'bandpass'; bp.Q.value = 1.2;
+    bp.frequency.setValueAtTime(300, t); bp.frequency.exponentialRampToValueAtTime(5000, t+d);
+    ng.gain.setValueAtTime(0.0001, t);
+    ng.gain.exponentialRampToValueAtTime(0.2, t+d-0.15);
+    ng.gain.linearRampToValueAtTime(0.0001, t+d-0.1);
+    s.connect(bp); bp.connect(ng); ng.connect(master);
+    s.start(t, Math.random()); s.stop(t+d+0.05);
+  }
+  function sfxExplosion(){
+    if(!ac) return;
+    tone(140, 1.3, 'sine', 1.0, 0, 28);
+    tone(70, 1.6, 'sawtooth', 0.35, 0, 22);
+    noise(1.4, 0.9, 'lowpass', 7000, 150, 0);
+    noise(0.06, 1.0, 'highpass', 1500, null, 0);
+    tone(1400, 0.9, 'triangle', 0.12, 0, 200);
+    for(var i=0;i<14;i++){
+      noise(0.05+Math.random()*0.05, 0.25, 'bandpass', 800+Math.random()*3000, null, 0.15+Math.random()*1.0);
+    }
+  }
+
+  /* ---------------- 確定演出 ----------------
+   * 地雷を押したとき、ここに登録された演出のどれかが必ず実行される。
+   * 新しい確定演出を足すときは EFFECTS に { id, run } を追加するだけ。
+   * run(ctx) は演出が終わったら resolve する Promise を返す。
+   *   ctx.beforeReveal() … 演出レイヤーを消す直前に呼ぶ(盤面に地雷を表示する)
+   * ------------------------------------------------ */
+  var EFFECTS = [
+    { id:'puchun', name:'プチュン(ブラックアウト→爆発)', run: runPuchun }
+  ];
+
+  function runPuchun(ctx){
+    // 参照 [1][2][3]: CRT消灯風フラッシュ(白紫) → フリーズ(無反応) → 解放
+    return new Promise(function(resolve){
+      var fx=$('fx'), stage=$('stage'), spark=$('spark'), flash=$('flash'),
+          pulse=$('pulse'), boom=$('boom');
+      var DARK = 3000 + Math.random()*900;     // 暗転の長さ(約3〜3.9秒)
+      var T_DARK = 750;                        // CRT消灯が終わって暗転に入る時刻
+
+      [fx, stage, spark, flash, pulse, boom].forEach(function(e){
+        e.getAnimations().forEach(function(a){ a.cancel(); });
+      });
+      fx.style.opacity = '';
+      fx.classList.add('on');
+
+      /* 0ms: プチュン ─ 画面が一本の線に潰れ、光点になって消える */
+      sfxPuchun();
+      vibrate(35);
+      stage.animate([
+        { transform:'scale(1,1)', filter:'brightness(1)', opacity:1 },
+        { transform:'scale(1,0.008)', filter:'brightness(5)', opacity:1, offset:0.75 },
+        { transform:'scale(0,0.008)', filter:'brightness(6)', opacity:0 }
+      ], { duration:230, easing:'cubic-bezier(.6,0,.9,1)', fill:'forwards' });
+      fx.animate([
+        { backgroundColor:'rgba(0,0,0,0)' },
+        { backgroundColor:'rgba(0,0,0,1)' }
+      ], { duration:260, delay:110, fill:'forwards' });
+      spark.animate([
+        { opacity:0, width:'100vw', height:'3px', borderRadius:'3px', offset:0 },
+        { opacity:1, width:'100vw', height:'3px', borderRadius:'3px', offset:0.14 },
+        { opacity:1, width:'100vw', height:'3px', borderRadius:'3px', offset:0.35 },
+        { opacity:1, width:'7px', height:'7px', borderRadius:'50%', offset:1 }
+      ], { duration:700, easing:'ease-in', fill:'forwards' });
+
+      /* 750ms〜: 暗転。光点だけが残り、心音とともに少しずつ膨らむ */
+      setTimeout(function(){
+        sfxDark(DARK);
+        spark.animate([
+          { width:'7px', height:'7px', boxShadow:'0 0 18px 6px rgba(190,160,255,.9)' },
+          { width:'72px', height:'72px', boxShadow:'0 0 70px 34px rgba(190,160,255,.95)' }
+        ], { duration:DARK, easing:'cubic-bezier(.7,0,1,.5)', fill:'forwards' });
+
+        var t0 = performance.now();
+        (function loop(){
+          var el = performance.now() - t0;
+          if(el > DARK - 250) return;
+          sfxBeat();
+          vibrate(18);
+          pulse.animate([{opacity:0},{opacity:.4},{opacity:0}], { duration:280 });
+          var p = el / DARK;
+          setTimeout(loop, 950 - (950-360)*p);   // 心音がだんだん速くなる
+        })();
+
+        // 爆発の直前、光点がチラつく
+        setTimeout(function(){
+          spark.animate([{opacity:1},{opacity:.15},{opacity:1},{opacity:.35},{opacity:1}],
+            { duration:260, iterations:2 });
+        }, Math.max(0, DARK-600));
+      }, T_DARK);
+
+      /* 750ms + DARK: 爆発 */
+      setTimeout(function(){
+        sfxExplosion();
+        vibrate([90,40,180,40,320]);
+        spark.style.opacity = 0;
+        spark.getAnimations().forEach(function(a){ a.cancel(); });
+
+        flash.animate([
+          { opacity:1, backgroundColor:'#ffffff' },
+          { opacity:1, backgroundColor:'#efe4ff', offset:0.18 },
+          { opacity:0, backgroundColor:'#b99bff' }
+        ], { duration:1200, easing:'ease-out', fill:'forwards' });
+
+        // 衝撃波
+        [0,130,270].forEach(function(delay, i){
+          var r = document.createElement('div');
+          r.className = 'ring';
+          fx.appendChild(r);
+          r.animate([
+            { transform:'scale(0.4)', opacity:1 },
+            { transform:'scale(' + (22 + i*6) + ')', opacity:0 }
+          ], { duration:1100, delay:delay, easing:'cubic-bezier(.1,.7,.3,1)', fill:'both' })
+            .onfinish = function(){ if(r.parentNode) r.parentNode.removeChild(r); };
+        });
+
+        // 画面シェイク
+        var sh = [];
+        for(var i=0;i<16;i++){
+          var amp = (1 - i/16) * 24;
+          sh.push({ transform:'translate(' + ((Math.random()*2-1)*amp).toFixed(1) + 'px,' + ((Math.random()*2-1)*amp).toFixed(1) + 'px)' });
+        }
+        sh.push({ transform:'translate(0,0)' });
+        fx.animate(sh, { duration:850 });
+
+        burst();
+
+        boom.animate([
+          { opacity:0, transform:'translateY(-50%) scale(1.9)' },
+          { opacity:1, transform:'translateY(-50%) scale(1)' }
+        ], { duration:380, delay:420, easing:'cubic-bezier(.2,.9,.3,1)', fill:'both' });
+
+        /* 爆発から2.3秒後: 盤面に戻る */
+        setTimeout(function(){
+          stage.getAnimations().forEach(function(a){ a.cancel(); });
+          if(ctx && ctx.beforeReveal) ctx.beforeReveal();
+          var fade = fx.animate([{opacity:1},{opacity:0}], { duration:450, fill:'forwards' });
+          fade.onfinish = function(){
+            [fx, spark, flash, pulse, boom].forEach(function(e){
+              e.getAnimations().forEach(function(a){ a.cancel(); });
+            });
+            fx.classList.remove('on');
+            fx.style.opacity = '';
+            var c = $('pc'); c.getContext('2d').clearRect(0,0,c.width,c.height);
+            resolve();
+          };
+        }, 2300);
+      }, T_DARK + DARK);
+    });
+  }
+
+  // 爆発の粒子(canvas)
+  function burst(){
+    var c = $('pc'), dpr = Math.min(2, window.devicePixelRatio || 1);
+    var W = window.innerWidth, H = window.innerHeight;
+    c.width = W*dpr; c.height = H*dpr;
+    var g = c.getContext('2d');
+    g.setTransform(dpr,0,0,dpr,0,0);
+    var colors = ['#ffffff','#E6D6FF','#B388FF','#FFB74D','#FF5A45','#FFE08A'];
+    var ps = [], i;
+    for(i=0;i<190;i++){
+      var a = Math.random()*Math.PI*2, sp = 4 + Math.random()*20;
+      ps.push({
+        x:W/2, y:H/2, px:W/2, py:H/2,
+        vx:Math.cos(a)*sp, vy:Math.sin(a)*sp,
+        r:1.5 + Math.random()*4.5,
+        life:0, max:0.9 + Math.random()*1.1,
+        col:colors[(Math.random()*colors.length)|0]
+      });
+    }
+    var last = performance.now(), start = last;
+    (function frame(now){
+      var dt = Math.min(2.5, (now - last) / 16.667); last = now;
+      g.clearRect(0,0,W,H);
+      var alive = 0;
+      for(var k=0;k<ps.length;k++){
+        var p = ps[k];
+        p.life += dt/60;
+        if(p.life >= p.max) continue;
+        alive++;
+        p.px = p.x; p.py = p.y;
+        p.vx *= Math.pow(0.965, dt); p.vy = p.vy*Math.pow(0.965, dt) + 0.28*dt;
+        p.x += p.vx*dt; p.y += p.vy*dt;
+        var al = 1 - p.life/p.max;
+        g.globalAlpha = al;
+        g.strokeStyle = p.col; g.lineWidth = p.r*0.8; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(p.px, p.py); g.lineTo(p.x, p.y); g.stroke();
+        g.fillStyle = p.col;
+        g.beginPath(); g.arc(p.x, p.y, p.r*al, 0, Math.PI*2); g.fill();
+      }
+      g.globalAlpha = 1;
+      if(alive > 0 && now - start < 3000) requestAnimationFrame(frame);
+      else g.clearRect(0,0,W,H);
+    })(last);
+  }
+
+  /* ---------------- ゲーム本体 ---------------- */
+  var BOMB_SVG =
+    '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">' +
+    '<defs><radialGradient id="bg" cx="38%" cy="35%" r="70%"><stop offset="0" stop-color="#6b6478"/><stop offset="1" stop-color="#14111a"/></radialGradient></defs>' +
+    '<path d="M62 24 Q72 12 84 16" stroke="#ffd9a0" stroke-width="5" fill="none" stroke-linecap="round"/>' +
+    '<circle cx="86" cy="15" r="6" fill="#ffe08a"/>' +
+    '<circle cx="48" cy="56" r="32" fill="url(#bg)"/>' +
+    '<rect x="42" y="18" width="20" height="12" rx="3" fill="#2a2433" transform="rotate(28 52 24)"/>' +
+    '<ellipse cx="38" cy="44" rx="9" ry="6" fill="#fff" opacity=".28" transform="rotate(-30 38 44)"/>' +
+    '</svg>';
+
+  var state = { n:5, mine:-1, opened:{}, openedCount:0, over:false, busy:false };
+  var selectedSize = 5;
+
+  function show(id){
+    document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+    $(id).classList.add('active');
+  }
+  function face(f){ $('faceBtn').textContent = f; }
+  function setStatus(text, cls){
+    var s = $('status'); s.textContent = text; s.className = 'status' + (cls ? ' '+cls : '');
+  }
+  function setHint(t){ $('hint').textContent = t || ''; }
+
+  function updateHud(){
+    var total = state.n*state.n;
+    $('lcdMine').textContent = '001';
+    $('lcdLeft').textContent = pad3(total - 1 - state.openedCount);
+  }
+
+  function buildBoard(){
+    var n = state.n, b = $('board');
+    b.style.gridTemplateColumns = 'repeat(' + n + ',1fr)';
+    b.innerHTML = '';
+    for(var i=0;i<n*n;i++){
+      var c = document.createElement('button');
+      c.className = 'cell';
+      c.dataset.i = i;
+      c.setAttribute('aria-label', 'マス' + (i+1));
+      b.appendChild(c);
+    }
+  }
+
+  function newGame(n){
+    state.n = n;
+    state.mine = randInt(n*n);          // 一様ランダム(上記)
+    state.opened = {};
+    state.openedCount = 0;
+    state.over = false;
+    state.busy = false;
+    buildBoard();
+    updateHud();
+    face('🙂');
+    setStatus('順番にマスを選ぼう');
+    setHint('');
+    $('result').classList.remove('show');
+  }
+
+  function cellEl(i){ return $('board').children[i]; }
+
+  function pick(i){
+    if(state.over || state.busy || state.opened[i]) return;
+    ensureAudio();
+    if(i === state.mine){ triggerMine(i); } else { openSafe(i); }
+  }
+
+  function openSafe(i){
+    state.opened[i] = true;
+    state.openedCount++;
+    var c = cellEl(i);
+    c.classList.add('open'); c.disabled = true;
+    var total = state.n*state.n;
+    sfxSafe(state.openedCount / (total - 1));
+    vibrate(8);
+    updateHud();
+    var left = total - 1 - state.openedCount;
+    if(left === 0){
+      setStatus('のこりは1マス。覚悟はいいか。', 'warn');
+      setHint('最後のマスを引く人が…');
+    } else {
+      setStatus('セーフ。つぎの人どうぞ');
+      setHint('');
+    }
+  }
+
+  function triggerMine(i){
+    state.busy = true;
+    state.over = true;
+    face('😮');
+    var effect = EFFECTS[randInt(EFFECTS.length)];
+    effect.run({
+      beforeReveal: function(){
+        var c = cellEl(i);
+        c.classList.add('mine'); c.innerHTML = BOMB_SVG;
+        face('😵');
+        setStatus('地雷。引いた人が飲む。', 'over');
+        setHint('');
+      }
+    }).then(function(){
+      state.busy = false;
+      $('result').classList.add('show');
+    });
+  }
+
+  /* ---------------- events ---------------- */
+  $('board').addEventListener('click', function(e){
+    var t = e.target.closest ? e.target.closest('.cell') : null;
+    if(t) pick(parseInt(t.dataset.i, 10));
+  });
+  $('board').addEventListener('pointerdown', function(e){
+    if(state.over || state.busy) return;
+    var t = e.target.closest ? e.target.closest('.cell') : null;
+    if(t && !t.disabled) face('😮');
+  });
+  ['pointerup','pointercancel','pointerleave'].forEach(function(ev){
+    $('board').addEventListener(ev, function(){ if(!state.over && !state.busy) face('🙂'); });
+  });
+
+  $('sizeRow').addEventListener('click', function(e){
+    var b = e.target.closest ? e.target.closest('.size-btn') : null;
+    if(!b) return;
+    selectedSize = parseInt(b.dataset.n, 10);
+    document.querySelectorAll('.size-btn').forEach(function(x){ x.classList.toggle('sel', x === b); });
+  });
+  $('startBtn').addEventListener('click', function(){
+    ensureAudio();
+    show('screen-play');
+    newGame(selectedSize);
+  });
+  $('againBtn').addEventListener('click', function(){ if(!state.busy) newGame(state.n); });
+  $('faceBtn').addEventListener('click', function(){ if(!state.busy) newGame(state.n); });
+  $('backBtn').addEventListener('click', function(){ if(!state.busy) show('screen-setup'); });
+  $('muteBtn').addEventListener('click', function(){
+    muted = !muted;
+    $('muteBtn').textContent = muted ? '🔇' : '🔊';
+    if(master) master.gain.value = muted ? 0 : 0.9;
+  });
+})();
+</script>
+</body>
+</html>

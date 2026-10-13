@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>感覚ならべ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-base:#14121A;
+    --bg-surface:#1E1B26;
+    --bg-raised:#282330;
+    --line:#3A3444;
+    --text:#F3F1EE;
+    --text-muted:#9A93A6;
+    --accent:#F17FB1;
+    --accent-ink:#2B0A18;
+    --danger:#FF5A45;
+    --gold:#E8C24A;
+    --radius-card:18px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;overscroll-behavior:none;background:var(--bg-base);}
+  body{
+    color:var(--text);
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    -webkit-tap-highlight-color:transparent;
+    overflow:hidden;
+  }
+  h1,h2,h3{margin:0;}
+  button{font-family:inherit;cursor:pointer;border:none;touch-action:manipulation;}
+  button:disabled{opacity:.35;cursor:default;}
+
+  #app{width:100%;max-width:460px;margin:0 auto;height:100vh;height:100dvh;display:flex;flex-direction:column;position:relative;}
+  .screen{display:none;flex-direction:column;flex:1;min-height:0;padding:26px 22px 0;overflow-y:auto;animation:fadeIn .3s ease;}
+  .screen.active{display:flex;}
+  @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+
+  .eyebrow{color:var(--text-muted);font-size:12px;letter-spacing:.05em;margin-bottom:8px;}
+  .title{font-size:28px;font-weight:900;}
+  .tagline{color:var(--text-muted);font-size:13.5px;margin-top:12px;line-height:1.8;}
+  .section-label{font-size:12px;color:var(--text-muted);margin:22px 0 10px;}
+  .center{margin:auto 0;}
+  .spacer{flex:1;min-height:12px;}
+  .bottombar{padding:16px 0 calc(16px + env(safe-area-inset-bottom));}
+  .btn-primary{
+    width:100%;background:var(--accent);color:var(--accent-ink);border-radius:14px;padding:16px;
+    font-size:15.5px;font-weight:900;
+  }
+  .btn-ghost{
+    width:100%;background:transparent;color:var(--text-muted);border:1px solid var(--line);
+    border-radius:14px;padding:13px;font-size:13.5px;font-weight:700;margin-top:9px;
+  }
+  .quit{
+    align-self:flex-start;background:transparent;color:var(--text-muted);font-size:12.5px;font-weight:700;
+    padding:4px 0 10px;
+  }
+
+  /* setup */
+  .size-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+  .size-btn{
+    background:var(--bg-surface);color:var(--text);border:1.5px solid var(--line);border-radius:14px;
+    padding:13px 6px;text-align:center;transition:border-color .15s, background .15s;
+  }
+  .size-btn .big{display:block;font-size:20px;font-weight:900;}
+  .size-btn.sel{border-color:var(--accent);background:rgba(241,127,177,.12);}
+  .size-btn.sel .big{color:var(--accent);}
+  .rule-card{
+    background:var(--bg-surface);border:1px solid var(--line);border-radius:var(--radius-card);
+    padding:10px 18px;margin-top:20px;
+  }
+  .rule-row{display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);}
+  .rule-row:last-child{border-bottom:none;}
+  .rule-num{
+    width:22px;height:22px;border-radius:6px;background:var(--bg-raised);
+    color:var(--text-muted);font-size:12px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  }
+  .rule-text{font-size:13px;line-height:1.6;}
+  .notice{font-size:11px;color:var(--text-muted);margin-top:12px;line-height:1.7;}
+
+  /* theme & scale */
+  .theme-card{
+    background:var(--bg-surface);border:1.5px solid var(--line);border-radius:22px;
+    padding:26px 18px;text-align:center;margin-top:6px;
+  }
+  .theme-text{font-size:28px;font-weight:900;line-height:1.35;}
+  .scale{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:20px;}
+  .scale .end{flex:1;background:var(--bg-raised);border-radius:12px;padding:10px 8px;}
+  .scale .end b{display:block;font-size:20px;font-weight:900;color:var(--accent);}
+  .scale .end span{display:block;font-size:12.5px;margin-top:2px;line-height:1.4;}
+  .scale .arr{color:var(--text-muted);font-size:18px;}
+  .scale.small .end{padding:7px 6px;}
+  .scale.small .end b{font-size:15px;}
+  .scale.small .end span{font-size:11.5px;}
+  .mini-theme{font-size:17px;font-weight:900;text-align:center;margin:2px 0 12px;}
+
+  /* chips */
+  .chip{
+    display:inline-flex;align-items:center;justify-content:center;min-width:44px;height:32px;padding:0 10px;
+    border-radius:10px;color:#14121A;font-weight:900;font-size:14px;
+  }
+  .chip.big{min-width:96px;height:96px;border-radius:50%;font-size:34px;}
+
+  /* handoff & view */
+  .handoff{text-align:center;}
+  .handoff .msg{font-size:20px;font-weight:900;margin-top:20px;line-height:1.5;}
+  .handoff .sub{color:var(--text-muted);font-size:13px;margin-top:10px;line-height:1.7;}
+  .view-head{display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:14px;}
+  .view-head .who{font-size:16px;font-weight:900;}
+  .hold{
+    width:100%;aspect-ratio:1/1.05;border-radius:24px;background:var(--bg-surface);border:2px dashed var(--line);
+    display:flex;align-items:center;justify-content:center;text-align:center;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none;
+    transition:background .1s, border-color .1s;
+  }
+  .hold .idle{color:var(--text-muted);font-size:15px;font-weight:700;line-height:1.8;}
+  .hold .shown{display:none;flex-direction:column;align-items:center;gap:10px;padding:0 14px;}
+  .hold.on{background:var(--bg-raised);border:2px solid var(--accent);}
+  .hold.on .idle{display:none;}
+  .hold.on .shown{display:flex;}
+  .hnum{font-size:110px;font-weight:900;line-height:1;color:var(--accent);font-variant-numeric:tabular-nums;}
+  .hth{font-size:12.5px;color:var(--text-muted);line-height:1.6;}
+  .hint{text-align:center;color:var(--text-muted);font-size:12px;margin-top:12px;min-height:18px;}
+
+  /* discuss */
+  .players{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px;}
+  .tip{background:var(--bg-surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-top:18px;font-size:13px;line-height:1.8;}
+
+  /* order */
+  .end-label{font-size:12px;font-weight:700;color:var(--accent);text-align:center;margin:10px 0 8px;line-height:1.5;}
+  .end-label small{color:var(--text-muted);font-weight:500;}
+  #slots{position:relative;}
+  .slotbg{
+    position:absolute;left:0;right:0;height:52px;border:1px dashed var(--line);border-radius:12px;
+    display:flex;align-items:center;
+  }
+  .slotbg .sn{width:30px;text-align:center;color:var(--text-muted);font-weight:900;font-size:14px;}
+  /* ドラッグできるカード。位置は transform だけで動かす(滑らかに入れ替わる) */
+  .card{
+    position:absolute;left:30px;right:0;top:0;height:52px;border-radius:12px;
+    background:var(--bg-surface);border:1px solid var(--line);
+    display:flex;align-items:center;gap:12px;padding:0 14px 0 10px;
+    cursor:grab;touch-action:none;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+    transition:transform .24s cubic-bezier(.2,.8,.2,1), box-shadow .15s, border-color .15s;
+    will-change:transform;z-index:1;
+  }
+  .card .nm{font-size:15px;font-weight:700;}
+  .card .grip{margin-left:auto;color:var(--text-muted);font-size:20px;letter-spacing:-2px;}
+  .card.dragging{
+    transition:box-shadow .15s, border-color .15s;z-index:10;cursor:grabbing;
+    border-color:var(--accent);box-shadow:0 12px 26px rgba(0,0,0,.55);
+  }
+
+  /* reveal */
+  #revList{display:flex;flex-direction:column;gap:8px;margin-top:6px;}
+  .rrow{
+    display:flex;align-items:center;gap:10px;background:var(--bg-surface);border:1px solid var(--line);
+    border-radius:14px;padding:10px 12px;
+  }
+  .rrow .pos{width:18px;text-align:center;color:var(--text-muted);font-weight:900;font-size:14px;}
+  .rrow .num{
+    flex:1;font-size:26px;font-weight:900;font-variant-numeric:tabular-nums;color:var(--text-muted);
+    transition:color .25s, transform .25s;
+  }
+  .rrow.open .num{color:var(--text);animation:flip .35s ease;}
+  @keyframes flip{0%{transform:rotateX(90deg) scale(.8);}100%{transform:none;}}
+  .rrow .info{font-size:11px;color:var(--text-muted);text-align:right;line-height:1.5;min-width:100px;}
+  .rrow .badge{width:24px;text-align:center;font-size:18px;}
+  .rrow.perfect{border-color:rgba(232,194,74,.6);}
+  .rrow.worst{border-color:var(--danger);box-shadow:0 0 0 1px rgba(255,90,69,.5), 0 0 22px rgba(255,90,69,.35);animation:thud .5s ease;}
+  @keyframes thud{
+    0%{transform:scale(1.05) translateX(0);}
+    20%{transform:translateX(-7px);}
+    40%{transform:translateX(7px);}
+    60%{transform:translateX(-4px);}
+    80%{transform:translateX(3px);}
+    100%{transform:none;}
+  }
+  #verdict{text-align:center;font-size:17px;font-weight:900;margin:16px 0 4px;min-height:26px;}
+  #verdictSub{text-align:center;font-size:12px;color:var(--text-muted);min-height:16px;margin-bottom:6px;line-height:1.6;}
+  #lineWrap{opacity:0;transition:opacity .5s ease;margin-top:12px;}
+  #lineWrap.show{opacity:1;}
+  .line-label{font-size:12px;color:var(--text-muted);margin-bottom:6px;}
+  #line{position:relative;height:92px;margin:0 16px;}
+  #line .track{position:absolute;left:0;right:0;top:44px;height:3px;border-radius:3px;background:var(--line);}
+  #line .tick{position:absolute;top:50px;font-size:11px;color:var(--text-muted);}
+  #line .tick.l{left:-6px;} #line .tick.r{right:-10px;}
+  #line .dot{position:absolute;transform:translateX(-50%);text-align:center;}
+  #line .dot .chip{min-width:34px;height:26px;font-size:12px;padding:0 6px;border-radius:8px;}
+  #line .dot small{display:block;font-size:10.5px;color:var(--text-muted);margin-top:1px;font-variant-numeric:tabular-nums;}
+  #endButtons{display:none;}
+  #endButtons.show{display:block;animation:fadeIn .4s ease;}
+
+  #muteBtn{
+    position:fixed;top:12px;right:12px;z-index:60;width:38px;height:38px;border-radius:10px;
+    background:var(--bg-surface);color:var(--text);border:1px solid var(--line);font-size:16px;
+  }
+</style>
+</head>
+<body>
+
+<!--
+  参考文献 / References
+  【着想】
+  [1] 数字カード(1〜100)を各自が秘密に持ち、お題に沿った言葉だけで伝え合って小さい順に並ぶ、という遊びの形を
+      市販ゲーム「ito」の紹介記事から参考にした(仕組みのみ。名称・お題の文面は使っていない。お題はすべて自作)。
+      https://news.mynavi.jp/article/20240229-2853646/
+      https://camphack.nap-camp.com/4371
+      https://opinionatedgamers.com/2023/12/05/dale-yu-review-of-ito/
+      (レビュー[上記3つ目]は「気心の知れた相手向き。初対面だと言葉が無難になりがち」と指摘 → お題は誰でも分かる題材中心にし、
+       両端(1側/100側)の意味を必ず画面に出して解釈のズレを減らした)
+  【技術】
+  [2] Fisher-Yates シャッフル(Fisher & Yates 1938、計算機向けの in-place 版は Durstenfeld 1964、Knuth が普及)
+      https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
+      → 全順列が等確率。インデックスは [0, i] の閉区間から選ぶ(i 未満にすると偏る)。
+  [3] MDN: Crypto.getRandomValues()
+      https://developer.mozilla.org/en-US/docs/Web/API/Crypto/getRandomValues
+  [4] MDN: Pointer events / Multi-touch interaction (長押しで数字を見せる処理)
+      https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events/Multi-touch_interaction
+  [5] MDN: Web Audio API
+      https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API
+  【ドラッグ並べ替え】
+  [6] SortableJS(並べ替えUIの既存ライブラリ。touch対応・animationオプションなど)
+      https://cssscript.com/lightweight-js-sorting-library-with-native-html5-drag-and-drop-sortable/
+  [7] MDN: Element.setPointerCapture()(指がカードの外に出てもドラッグを追従し続ける)
+      https://developer.mozilla.org/en-US/docs/Web/API/Element/setPointerCapture
+  [8] Paul Lewis, FLIP Your Animations(transform/opacity だけで動かすと滑らか)
+      https://aerotwist.com/blog/flip-your-animations/
+  【判定ルール】
+  [9] 順位のズレ |並べた位置 − 本来の順位| は、並べ替えの「総ズレ量」を測る Spearman's footrule
+      D(π) = Σ|π_i − i| の1項に相当する(Diaconis & Graham, 1977)。
+      https://arxiv.org/html/2404.16755v1
+
+  公平性: 数字は 1〜100 から重複なしで一様ランダムに配る(暗号用乱数 + 棄却法 + Fisher-Yates)。
+          判定は機械的に決め、補正・重み付けはしない。
+            1) 順位のズレ |並べた位置 − 本来の順位| が最大の人が候補
+            2) 候補が複数(同率)のときだけ、数値のズレ幅 |自分の数字 − その位置に来るはずの数字| が最大の人
+            3) それも同じなら、同率の全員
+-->
+
+<button id="muteBtn" aria-label="音のオン/オフ">🔊</button>
+
+<div id="app">
+
+  <!-- SETUP -->
+  <div class="screen active" id="s-setup">
+    <div class="center">
+      <div class="eyebrow">KANKAKU NARABE</div>
+      <div class="title">感覚ならべ</div>
+      <div class="tagline">お題に合う言葉だけで数字を伝えて、小さい順に並ぶ。<br>いちばんズレた人が飲む。</div>
+
+      <div class="section-label">人数</div>
+      <div class="size-row" id="sizeRow">
+        <button class="size-btn" data-n="3"><span class="big">3人</span></button>
+        <button class="size-btn sel" data-n="4"><span class="big">4人</span></button>
+        <button class="size-btn" data-n="5"><span class="big">5人</span></button>
+        <button class="size-btn" data-n="6"><span class="big">6人</span></button>
+        <button class="size-btn" data-n="7"><span class="big">7人</span></button>
+        <button class="size-btn" data-n="8"><span class="big">8人</span></button>
+      </div>
+
+      <div class="rule-card">
+        <div class="rule-row"><div class="rule-num">1</div><div class="rule-text">座っている順に P1・P2… と決める。スマホを回して、各自が1〜100の秘密の数字を1つ確認する</div></div>
+        <div class="rule-row"><div class="rule-num">2</div><div class="rule-text">数字は言わず、お題に合う言葉で伝える(例:お題「強そうな生き物」→「ライオン」「ハムスター」)</div></div>
+        <div class="rule-row"><div class="rule-num">3</div><div class="rule-text">話し合って、数字が小さい順に並ぶ(アプリ上では、カードをドラッグして並べ替える)</div></div>
+        <div class="rule-row"><div class="rule-num">4</div><div class="rule-text">答え合わせ。本来の順位から一番ズレた人が飲む。ズレが同じ人が複数いたら、数字のズレ幅(その位置に来るはずだった数字との差)が大きい人が飲む。それも同じなら全員</div></div>
+      </div>
+      <div class="notice">※ 数字そのものを言うのは禁止。みんなで同じ「ものさし」を想像するのがコツ。数字の差は、同率のときだけ使います。</div>
+    </div>
+    <div class="bottombar"><button class="btn-primary" id="startBtn">はじめる</button></div>
+  </div>
+
+  <!-- THEME -->
+  <div class="screen" id="s-theme">
+    <button class="quit" data-quit="0">← 人数選択に戻る</button>
+    <div class="center">
+      <div class="eyebrow">THEME</div>
+      <div class="theme-card">
+        <div class="theme-text" id="themeText"></div>
+        <div class="scale" id="themeScale"></div>
+      </div>
+      <div class="tip">お題と両端の意味を、みんなで確認。<br>確認できたらスマホを回して、番号を配ります。</div>
+    </div>
+    <div class="bottombar">
+      <button class="btn-primary" id="dealBtn">番号を配る</button>
+      <button class="btn-ghost" id="rerollBtn">お題を引き直す</button>
+    </div>
+  </div>
+
+  <!-- HANDOFF -->
+  <div class="screen" id="s-hand">
+    <div class="center handoff">
+      <span class="chip big" id="handChip"></span>
+      <div class="msg" id="handMsg"></div>
+      <div class="sub">ほかの人は画面を見ないでね。<br>受け取ったら下のボタンを押す。</div>
+    </div>
+    <div class="bottombar"><button class="btn-primary" id="handBtn"></button></div>
+  </div>
+
+  <!-- VIEW -->
+  <div class="screen" id="s-view">
+    <div class="center">
+      <div class="view-head"><span class="chip" id="viewChip"></span><span class="who">の番号</span></div>
+      <div class="hold" id="holdCard">
+        <div class="idle">ここを長押しすると<br>番号が見える<br><small style="font-size:12px">(離すと隠れる)</small></div>
+        <div class="shown"><div class="hnum" id="hnum"></div><div class="hth" id="hth"></div></div>
+      </div>
+      <div class="hint" id="viewHint"></div>
+    </div>
+    <div class="bottombar"><button class="btn-primary" id="viewNextBtn" disabled>覚えた。次へ</button></div>
+  </div>
+
+  <!-- DISCUSS -->
+  <div class="screen" id="s-discuss">
+    <button class="quit" data-quit="1">← 人数選択に戻る</button>
+    <div class="center">
+      <div class="eyebrow">DISCUSS</div>
+      <div class="mini-theme" id="discTheme"></div>
+      <div class="scale small" id="discScale"></div>
+      <div class="players" id="discPlayers"></div>
+      <div class="tip">数字は言わずに、お題に合う言葉で伝え合おう。<br>話し合って、小さい順(1側 → 100側)に並ぶ。<br>決まったら下のボタンで、アプリ上にその並びを作ろう。</div>
+    </div>
+    <div class="bottombar"><button class="btn-primary" id="discBtn">並びが決まった</button></div>
+  </div>
+
+  <!-- ORDER -->
+  <div class="screen" id="s-order">
+    <button class="quit" data-quit="1">← 人数選択に戻る</button>
+    <div class="eyebrow">ORDER</div>
+    <div class="mini-theme" id="ordTheme"></div>
+    <div class="section-label" style="margin:2px 0 0;text-align:center">カードを上下にドラッグして、決めた並びにしてね</div>
+    <div class="end-label" id="ordTop"></div>
+    <div id="slots"></div>
+    <div class="end-label" id="ordBot"></div>
+    <div class="spacer"></div>
+    <div class="bottombar">
+      <button class="btn-primary" id="revealBtn">この並びで答え合わせ</button>
+    </div>
+  </div>
+
+  <!-- REVEAL -->
+  <div class="screen" id="s-reveal">
+    <div class="eyebrow">RESULT</div>
+    <div class="mini-theme" id="revTheme"></div>
+    <div class="scale small" id="revScale"></div>
+    <div id="revList" style="margin-top:14px"></div>
+    <div id="verdict"></div>
+    <div id="verdictSub"></div>
+    <div id="lineWrap">
+      <div class="line-label">みんなの数字の位置(1〜100)</div>
+      <div id="line"></div>
+    </div>
+    <div class="spacer"></div>
+    <div id="endButtons" class="bottombar">
+      <button class="btn-primary" id="againBtn">次のお題へ</button>
+      <button class="btn-ghost" id="setupBtn">人数を変える</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  var COLORS = ['#E8C24A','#5FB4E8','#F2A65A','#5FD0A8','#F17FB1','#8B8FF0','#FF6B5B','#B4D95C'];
+
+  /* お題: [テーマ, 1側(小さい)の意味, 100側(大きい)の意味]  すべてオリジナル。増やしたいときはここに足すだけ */
+  var THEMES = [
+    ['強そうな生き物','弱そう','強そう'],
+    ['かわいい生き物','かわいくない','めちゃくちゃかわいい'],
+    ['優しそうな動物','怖そう','優しそう'],
+    ['家に置いたら困る生き物','全然困らない','絶対困る'],
+    ['生まれ変わったらなりたい生き物','絶対なりたくない','絶対なりたい'],
+    ['猫っぽいか、犬っぽいか','超・猫っぽい','超・犬っぽい'],
+    ['明日の二日酔いのつらさ','ケロッと元気','起き上がれない'],
+    ['飲み会で言われてうれしい一言','微妙','最高にうれしい'],
+    ['酔ったときにやりがちなこと(やばさ)','かわいいもの','事件'],
+    ['飲み会の幹事の大変さ','楽勝','地獄'],
+    ['一気飲みしたくない飲み物','余裕で飲める','絶対ムリ'],
+    ['何杯でも飲めそうなお酒','1杯で限界','無限に飲める'],
+    ['お酒に合うおつまみ','合わない','最高に合う'],
+    ['割り勘で損した気分になる度','お得','大損'],
+    ['二次会に行きたい度','帰りたい','朝まで行く'],
+    ['終電を逃したときの絶望度','余裕','絶望'],
+    ['酔ってるときに送ってはいけないメッセージ','送っても平気','絶対ダメ'],
+    ['無人島で役に立つもの','役に立たない','命綱'],
+    ['世界を救えそうなもの','無力','救世主'],
+    ['家に忘れたら致命傷なもの','なくても余裕','致命傷'],
+    ['ラーメンのこってり度','あっさり','ドロドロ'],
+    ['辛い食べ物','全然辛くない','地獄の辛さ'],
+    ['甘い食べ物','甘くない','激甘'],
+    ['夏に食べたい度(食べ物)','冬向き','夏向き'],
+    ['最後に取っておきたい食べ物','先に食べたい','絶対に最後'],
+    ['お弁当に入っていたらうれしいおかず','がっかり','大喜び'],
+    ['カレーに入れたい具','入れたくない','絶対入れたい'],
+    ['おにぎりの具の王道度','変わり種','王道'],
+    ['お寿司ネタの高級感','庶民的','超高級'],
+    ['揚げ物のカロリーが高そうな度','ヘルシー','悪魔'],
+    ['コンビニで買うと得した気分になるもの','損した気分','大得'],
+    ['社食・学食でテンションが上がるメニュー','下がる','上がる'],
+    ['布団から出たくない度','余裕で起きる','絶対出たくない'],
+    ['遅刻したときの絶望度','平気','人生終了'],
+    ['待たされるとイライラする場所','全然平気','爆発しそう'],
+    ['ドキドキする瞬間','落ち着く','心臓が止まりそう'],
+    ['怖いもの','怖くない','失神'],
+    ['お風呂の温度','ぬるすぎ','熱すぎ'],
+    ['部屋の散らかり度','モデルルーム','足の踏み場がない'],
+    ['スマホの電池が減ってきたときの焦り度','余裕','絶体絶命'],
+    ['SNSで「いいね」がついたときのうれしさ','どうでもいい','飛び跳ねる'],
+    ['恥ずかしい失敗','笑える','恥ずかしくて消えたい'],
+    ['お金がかかりそうな趣味','ほぼタダ','破産する'],
+    ['モテそうな職業','モテなさそう','めっちゃモテそう'],
+    ['大変そうな仕事','楽そう','過酷'],
+    ['テスト前の絶望感','余裕','もう無理'],
+    ['お化け屋敷の怖さ','余裕','絶叫'],
+    ['カラオケで歌うのが恥ずかしい曲','平気','公開処刑'],
+    ['旅行で行きたい場所の遠さ','近所','地球の裏側'],
+    ['ジェットコースターの怖さ','余裕','無理'],
+    ['朝っぽいか、夜っぽいか','超・朝っぽい','超・夜っぽい'],
+    ['熱いもの','冷たい','燃えている'],
+    ['うるさいもの','静か','爆音'],
+    ['においが強いもの','無臭','強烈'],
+    ['硬いもの','やわらかい','カチカチ'],
+    ['速いもの','遅い','光速級'],
+    ['高い場所','地面','宇宙'],
+    ['古いもの','最新','大昔'],
+    ['高そうなもの','100円','100万円'],
+    ['眠くなるもの','目が覚める','即・寝る'],
+    ['シブいもの','ポップ','シブい'],
+    ['ゆるいもの','キッチリ','ゆるゆる'],
+    ['汚れていそうなもの','ピカピカ','不潔'],
+    ['不思議なもの','普通','謎すぎる'],
+    ['ひとりで入りづらいお店','余裕','絶対ムリ'],
+    ['恋人にされたら引くこと','平気','ドン引き'],
+    ['デートで失敗しにくい場所','危険','安全'],
+    ['友達に貸したくないもの','全然OK','絶対貸さない'],
+    ['親に見られたくないもの','平気','絶対見られたくない'],
+    ['先生に怒られそうなこと','セーフ','大目玉'],
+    ['休日にやりたいこと(インドア/アウトドア)','超・インドア','超・アウトドア'],
+    ['憂鬱な曜日','最高の日','最悪の日'],
+    ['夢に出てきたら嫌なもの','平気','悪夢'],
+    ['ずっと見ていられるもの','すぐ飽きる','一生見ていられる'],
+    ['もらったら困る量のもの','少なすぎて困る','多すぎて困る'],
+    ['ごほうび感があるもの','ふつう','特別なごほうび'],
+    ['時間がたつのが早く感じること','長く感じる','あっという間'],
+    ['緊張する場面','リラックス','ガチガチ'],
+    ['大人になって食べられるようになったもの','今でも苦手','大好物になった'],
+    ['雨の日にやりたくないこと','平気','絶対イヤ']
+  ];
+
+  function randInt(n){
+    if(window.crypto && window.crypto.getRandomValues){
+      var range = 0x100000000;
+      var limit = range - (range % n);
+      var buf = new Uint32Array(1);
+      do{ window.crypto.getRandomValues(buf); }while(buf[0] >= limit);
+      return buf[0] % n;
+    }
+    return Math.floor(Math.random()*n);
+  }
+
+  /* PURE-BEGIN */
+  // Fisher-Yates [2]。j は [0, i] の閉区間(i 未満にすると偏る)
+  function shuffle(arr, rand){
+    var a = arr.slice();
+    for(var i = a.length - 1; i > 0; i--){
+      var j = rand(i + 1);
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+  // 1〜100 から重複なしで n 個を一様に配る
+  function dealNumbers(n, rand){
+    var pool = [];
+    for(var i = 1; i <= 100; i++) pool.push(i);
+    return shuffle(pool, rand).slice(0, n);
+  }
+  // numbers[p] = プレイヤー p の数字 / order = 「小さい順」と主張された並び(プレイヤー番号の配列)
+  // 一番ズレた人の決め方:
+  //  1) 順位のズレ = |並べた位置 − 本来の順位|。これが最大の人が「候補」
+  //     (Spearman's footrule の1項に相当 [9])。
+  //  2) 候補が複数(同率)のときだけ、数値のズレ幅で決める。
+  //     数値のズレ幅 = |自分の数字 − 本来その位置に来るはずの数字|
+  //     (その位置に来るはずの数字 = 全員の数字を小さい順に並べた、その位置番目の数字)。
+  //     候補の中で数値のズレ幅が最大の人が一番ズレた人。
+  //  3) それも同じなら、同率の全員が一番ズレた人。
+  // 順位のズレが小さい人は、数値のズレ幅が大きくても敗者にならない(あくまで同率のときだけ使う)。
+  function scoreOrder(numbers, order){
+    var idx = numbers.map(function(v, i){ return i; });
+    idx.sort(function(a, b){ return numbers[a] - numbers[b]; });
+    var sortedNums = idx.map(function(p){ return numbers[p]; });
+    var rank = {};
+    idx.forEach(function(p, k){ rank[p] = k + 1; });
+    var rows = order.map(function(p, k){
+      var pos = k + 1;
+      return { player:p, num:numbers[p], pos:pos, rank:rank[p], disp:Math.abs(pos - rank[p]),
+               expect:sortedNums[k], gap:Math.abs(numbers[p] - sortedNums[k]), cand:false, worst:false };
+    });
+    var max = Math.max.apply(null, rows.map(function(r){ return r.disp; }));
+    var cands = (max > 0) ? rows.filter(function(r){ return r.disp === max; }) : [];
+    cands.forEach(function(r){ r.cand = true; });
+    var maxGap = cands.length ? Math.max.apply(null, cands.map(function(r){ return r.gap; })) : 0;
+    var worst = cands.filter(function(r){ return r.gap === maxGap; });
+    worst.forEach(function(r){ r.worst = true; });
+    return {
+      rows:rows, max:max, allCorrect:(max === 0),
+      tiedByRank:(cands.length > 1),                                   // 順位のズレが同率だった
+      decidedByGap:(cands.length > 1 && worst.length < cands.length),  // 数値のズレ幅で絞り込めた
+      candidates:cands.map(function(r){ return r.player; })
+    };
+  }
+
+  // ドラッグ並べ替え用。arr の from 番目を to 番目へ移す(他の要素は順序を保ったままずれる)
+  function moveItem(arr, from, to){
+    var a = arr.slice();
+    var x = a.splice(from, 1)[0];
+    a.splice(to, 0, x);
+    return a;
+  }
+  // 掴んだカードの縦位置 y(px)から、いま入るべきスロット番号を求める
+  function indexFromY(y, step, n){
+    var i = Math.round(y / step);
+    return Math.max(0, Math.min(n - 1, i));
+  }
+  /* PURE-END */
+
+  function $(id){ return document.getElementById(id); }
+  function vibrate(p){ try{ if(navigator.vibrate) navigator.vibrate(p); }catch(e){} }
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function chipHtml(p, cls){
+    return '<span class="chip' + (cls ? ' ' + cls : '') + '" style="background:' + COLORS[p] + '">P' + (p+1) + '</span>';
+  }
+
+  /* ---------------- Audio (Web Audio API [5]) ---------------- */
+  var ac=null, master=null, comp=null, noiseBuf=null, muted=false;
+  function ensureAudio(){
+    if(!ac){
+      var C = window.AudioContext || window.webkitAudioContext;
+      if(!C) return null;
+      ac = new C();
+      comp = ac.createDynamicsCompressor();
+      master = ac.createGain();
+      master.gain.value = muted ? 0 : 0.9;
+      master.connect(comp); comp.connect(ac.destination);
+    }
+    if(ac.state === 'suspended'){ ac.resume(); }
+    return ac;
+  }
+  function tone(freq, dur, type, vol, delay, endFreq){
+    if(!ac) return;
+    var t = ac.currentTime + (delay||0);
+    var o = ac.createOscillator(), g = ac.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    if(endFreq) o.frequency.exponentialRampToValueAtTime(endFreq, t+dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t+0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t+dur+0.03);
+  }
+  function noise(dur, vol, ftype, f0, f1, delay){
+    if(!ac) return;
+    if(!noiseBuf){
+      var len = ac.sampleRate*2;
+      noiseBuf = ac.createBuffer(1, len, ac.sampleRate);
+      var d = noiseBuf.getChannelData(0);
+      for(var i=0;i<len;i++) d[i] = Math.random()*2-1;
+    }
+    var t = ac.currentTime + (delay||0);
+    var s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
+    var f = ac.createBiquadFilter(); f.type = ftype;
+    f.frequency.setValueAtTime(f0, t);
+    if(f1) f.frequency.exponentialRampToValueAtTime(f1, t+dur);
+    var g = ac.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    s.connect(f); f.connect(g); g.connect(master);
+    s.start(t, Math.random()); s.stop(t+dur+0.03);
+  }
+  function sfxTap(){ tone(520, 0.05, 'triangle', 0.22); }
+  function sfxSwap(){ tone(420, 0.035, 'sine', 0.14); }
+  function sfxPeek(){ tone(740, 0.06, 'triangle', 0.22); }
+  function sfxCard(num){ tone(200 + num*7, 0.2, 'triangle', 0.28); noise(0.03, 0.15, 'highpass', 2500); }   // 数字が大きいほど高い音
+  function sfxDrum(){ tone(90, 0.3, 'sine', 0.7, 0, 45); }
+  function sfxPerfect(){ [523, 659, 784, 1047].forEach(function(f, i){ tone(f, 0.2, 'triangle', 0.26, i*0.09); }); }
+  function sfxWorst(){ tone(110, 0.7, 'sine', 0.9, 0, 40); noise(0.5, 0.5, 'lowpass', 3000, 150); }
+
+  /* ---------------- 状態 ---------------- */
+  var G = { n:4, theme:null, nums:[], viewIdx:0, viewed:false, order:[], res:null };
+  var selectedN = 4;
+  var deck = [], deckPos = 0;
+  var tids = [];
+
+  function later(fn, ms){ tids.push(setTimeout(fn, ms)); }
+  function clearLater(){ tids.forEach(clearTimeout); tids = []; }
+  function show(id){
+    document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+    $(id).classList.add('active');
+  }
+
+  function nextTheme(){
+    if(deckPos >= deck.length){
+      var all = []; for(var i=0;i<THEMES.length;i++) all.push(i);
+      deck = shuffle(all, randInt); deckPos = 0;
+    }
+    var t = THEMES[deck[deckPos++]];
+    return { text:t[0], lo:t[1], hi:t[2] };
+  }
+
+  function scaleHtml(){
+    return '<div class="end"><b>1</b><span>' + esc(G.theme.lo) + '</span></div>' +
+           '<div class="arr">⇔</div>' +
+           '<div class="end"><b>100</b><span>' + esc(G.theme.hi) + '</span></div>';
+  }
+
+  /* ---------------- 進行 ---------------- */
+  function startRound(){
+    clearLater();
+    G.theme = nextTheme();
+    G.nums = []; G.order = []; G.viewIdx = 0; G.viewed = false; G.res = null;
+    $('themeText').textContent = G.theme.text;
+    $('themeScale').innerHTML = scaleHtml();
+    show('s-theme');
+  }
+
+  function deal(){
+    G.nums = dealNumbers(G.n, randInt);   // 重複なし・一様
+    G.viewIdx = 0;
+    showHandoff();
+  }
+
+  function showHandoff(){
+    var p = G.viewIdx;
+    $('handChip').outerHTML = chipHtml(p, 'big').replace('<span ', '<span id="handChip" ');
+    $('handMsg').innerHTML = 'スマホを <b>P' + (p+1) + '</b> に渡して';
+    $('handBtn').textContent = 'P' + (p+1) + ' です。番号を見る';
+    show('s-hand');
+  }
+
+  function showView(){
+    var p = G.viewIdx;
+    G.viewed = false;
+    $('viewChip').outerHTML = chipHtml(p).replace('<span ', '<span id="viewChip" ');
+    $('holdCard').classList.remove('on');
+    $('hnum').textContent = '';
+    $('hth').textContent = '';
+    $('viewNextBtn').disabled = true;
+    $('viewNextBtn').textContent = (p === G.n - 1) ? '覚えた。全員確認した' : '覚えた。次の人へ';
+    $('viewHint').textContent = '見ている間は、他の人に見えないように';
+    show('s-view');
+  }
+
+  function peek(on){
+    var hold = $('holdCard');
+    if(on){
+      $('hnum').textContent = G.nums[G.viewIdx];
+      $('hth').innerHTML = esc(G.theme.text) + '<br>1 = ' + esc(G.theme.lo) + ' / 100 = ' + esc(G.theme.hi);
+      hold.classList.add('on');
+      if(!G.viewed){ G.viewed = true; $('viewNextBtn').disabled = false; $('viewHint').textContent = '覚えたら「次へ」'; }
+      sfxPeek(); vibrate(10);
+    } else {
+      hold.classList.remove('on');
+      $('hnum').textContent = '';      // 離したら数字を DOM からも消す
+      $('hth').textContent = '';
+    }
+  }
+
+  function viewNext(){
+    peek(false);
+    if(G.viewIdx >= G.n - 1){ showDiscuss(); return; }
+    G.viewIdx++;
+    showHandoff();
+  }
+
+  function showDiscuss(){
+    $('discTheme').textContent = G.theme.text;
+    $('discScale').innerHTML = scaleHtml();
+    var box = $('discPlayers'); box.innerHTML = '';
+    for(var i=0;i<G.n;i++) box.insertAdjacentHTML('beforeend', chipHtml(i));
+    show('s-discuss');
+  }
+
+  /* ---------------- 並べ替え(ドラッグ) ----------------
+   * カードは position:absolute で重ね、位置は transform: translateY だけで動かす。
+   * 掴んだカードは指に追従し、通過したスロットの分だけ他のカードが滑らかにずれる。
+   * 外部ライブラリには頼らず単体のHTMLで動くように自前実装している
+   * (考え方の参考: SortableJS の animation/touch の扱い [6]、setPointerCapture [7]、
+   *  transform だけで動かす FLIP の発想 [8])。 */
+  var ROW_H = 52, GAP = 8, STEP = ROW_H + GAP;
+  var cards = {};      // プレイヤー番号 → カード要素
+  var drag = null;     // { p, el, pid, startY, startTop, idx }
+
+  function showOrder(){
+    drag = null;
+    G.order = [];
+    for(var i=0;i<G.n;i++) G.order.push(i);       // 初期はP1..Pnの順。みんなで決めた並びにドラッグで直す
+    $('ordTheme').textContent = G.theme.text;
+    $('ordTop').innerHTML = '▲ 1側(小さい)<br><small>' + esc(G.theme.lo) + '</small>';
+    $('ordBot').innerHTML = '<small>' + esc(G.theme.hi) + '</small><br>▼ 100側(大きい)';
+    buildBoard();
+    show('s-order');
+  }
+
+  function buildBoard(){
+    var box = $('slots');
+    box.innerHTML = '';
+    box.style.height = (G.n * STEP - GAP) + 'px';
+    for(var i=0;i<G.n;i++){
+      var bg = document.createElement('div');
+      bg.className = 'slotbg';
+      bg.style.top = (i * STEP) + 'px';
+      bg.innerHTML = '<div class="sn">' + (i+1) + '</div>';
+      box.appendChild(bg);
+    }
+    cards = {};
+    for(var p=0;p<G.n;p++){
+      var c = document.createElement('div');
+      c.className = 'card';
+      c.dataset.p = p;
+      c.innerHTML = chipHtml(p) + '<span class="grip">≡</span>';
+      box.appendChild(c);
+      cards[p] = c;
+    }
+    layoutCards(-1, true);
+  }
+
+  // order の並びどおりにカードを配置する。skip のカード(掴んでいるもの)は動かさない
+  function layoutCards(skip, instant){
+    G.order.forEach(function(p, idx){
+      if(p === skip) return;
+      var el = cards[p];
+      if(instant){ el.style.transition = 'none'; }
+      el.style.transform = 'translateY(' + (idx * STEP) + 'px)';
+      if(instant){ void el.offsetHeight; el.style.transition = ''; }
+    });
+  }
+
+  var slotsEl = $('slots');
+  slotsEl.addEventListener('pointerdown', function(e){
+    var c = e.target.closest ? e.target.closest('.card') : null;
+    if(!c || drag) return;
+    e.preventDefault();
+    var p = parseInt(c.dataset.p, 10), idx = G.order.indexOf(p);
+    try{ c.setPointerCapture(e.pointerId); }catch(err){}
+    drag = { p:p, el:c, pid:e.pointerId, startY:e.clientY, startTop:idx * STEP, idx:idx };
+    c.classList.add('dragging');
+    c.style.transform = 'translateY(' + drag.startTop + 'px) scale(1.03)';
+    sfxTap(); vibrate(8);
+  });
+  slotsEl.addEventListener('pointermove', function(e){
+    if(!drag || e.pointerId !== drag.pid) return;
+    var maxY = (G.n - 1) * STEP;
+    var y = Math.max(0, Math.min(maxY, drag.startTop + (e.clientY - drag.startY)));
+    drag.el.style.transform = 'translateY(' + y + 'px) scale(1.03)';
+    var target = indexFromY(y, STEP, G.n);
+    if(target !== drag.idx){
+      G.order = moveItem(G.order, drag.idx, target);
+      drag.idx = target;
+      layoutCards(drag.p, false);               // 他のカードが滑らかにずれる
+      sfxSwap(); vibrate(6);
+    }
+  });
+  function endDrag(e){
+    if(!drag || e.pointerId !== drag.pid) return;
+    var el = drag.el;
+    el.classList.remove('dragging');
+    el.style.transform = 'translateY(' + (drag.idx * STEP) + 'px)';   // すっと所定の位置に収まる
+    drag = null;
+  }
+  ['pointerup','pointercancel','lostpointercapture'].forEach(function(ev){ slotsEl.addEventListener(ev, endDrag); });
+  slotsEl.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+
+  /* ---------------- 答え合わせ ---------------- */
+  var revealed = 0;
+  function startReveal(){
+    clearLater();
+    G.res = scoreOrder(G.nums, G.order);
+    revealed = 0;
+    $('revTheme').textContent = G.theme.text;
+    $('revScale').innerHTML = scaleHtml();
+    $('verdict').textContent = '';
+    $('verdictSub').textContent = '';
+    $('lineWrap').classList.remove('show');
+    $('endButtons').classList.remove('show');
+    var list = $('revList'); list.innerHTML = '';
+    G.res.rows.forEach(function(r){
+      var d = document.createElement('div');
+      d.className = 'rrow';
+      d.innerHTML = '<div class="pos">' + r.pos + '</div>' + chipHtml(r.player) +
+        '<div class="num">?</div><div class="info"></div><div class="badge"></div>';
+      list.appendChild(d);
+    });
+    show('s-reveal');
+
+    var n = G.res.rows.length, t = 700;
+    for(var k=0;k<n;k++){
+      (function(kk, at){ later(function(){ revealCard(kk, true); }, at); })(k, t);
+      t += (k === n - 2) ? 1500 : 800;      // 最後の1枚の前だけ長めにためる
+    }
+    later(function(){ finalize(true); }, t + 400);
+  }
+
+  function revealCard(k, withSound){
+    if(k < revealed) return;
+    var r = G.res.rows[k], row = $('revList').children[k];
+    row.classList.add('open');
+    row.querySelector('.num').textContent = r.num;
+    revealed = k + 1;
+    if(withSound){ if(k === G.res.rows.length - 1) sfxDrum(); sfxCard(r.num); vibrate(12); }
+  }
+
+  var finalized = false;
+  function finalize(withSound){
+    if(finalized) return;
+    finalized = true;
+    for(var k=revealed;k<G.res.rows.length;k++) revealCard(k, false);
+    var res = G.res, rows = $('revList').children;
+    res.rows.forEach(function(r, k){
+      var el = rows[k];
+      el.querySelector('.info').innerHTML = (r.disp === 0) ? '✓ ぴったり' : ('本来 ' + r.rank + '番目(ズレ' + r.disp + ')<br>数値ズレ ' + r.gap);
+      el.querySelector('.badge').textContent = r.worst ? '🍺' : (res.allCorrect || r.disp === 0 ? '✓' : '');
+      if(r.worst) el.classList.add('worst');
+      else if(r.disp === 0) el.classList.add('perfect');
+    });
+    var v = $('verdict');
+    if(res.allCorrect){
+      v.style.color = 'var(--gold)'; v.textContent = '全員正解!みんなの感覚、ぴったり。';
+      if(withSound){ sfxPerfect(); vibrate([40,30,40]); }
+    } else {
+      var names = res.rows.filter(function(r){ return r.worst; })
+        .sort(function(a, b){ return a.player - b.player; })
+        .map(function(r){ return 'P' + (r.player+1); }).join('・');
+      v.style.color = 'var(--danger)'; v.textContent = names + ' が一番ズレた。飲む。';
+      if(withSound){ sfxWorst(); vibrate([60,30,120]); }
+    }
+    var sub = $('verdictSub');
+    if(res.tiedByRank){
+      var cs = res.candidates.slice().sort(function(a, b){ return a - b; })
+        .map(function(p){ return 'P' + (p+1); }).join('・');
+      sub.textContent = res.decidedByGap
+        ? ('順位のズレが同率(' + cs + ')だったので、数値のズレ幅で決着')
+        : ('順位のズレも数値のズレ幅も同じ(' + cs + ')なので、同率で全員');
+    } else { sub.textContent = ''; }
+    renderLine(res.rows);
+    $('lineWrap').classList.add('show');
+    $('endButtons').classList.add('show');
+  }
+
+  // 数直線に、みんなの数字の位置を表示
+  function renderLine(rows){
+    var el = $('line');
+    el.innerHTML = '<div class="track"></div><div class="tick l">1</div><div class="tick r">100</div>';
+    var sorted = rows.slice().sort(function(a, b){ return a.num - b.num; });
+    sorted.forEach(function(r, i){
+      var d = document.createElement('div');
+      d.className = 'dot';
+      d.style.left = (((r.num - 1) / 99) * 100) + '%';
+      d.style.top = (i % 2 === 0 ? 2 : 52) + 'px';
+      d.innerHTML = chipHtml(r.player) + '<small>' + r.num + '</small>';
+      el.appendChild(d);
+    });
+  }
+
+  /* ---------------- events ---------------- */
+  $('sizeRow').addEventListener('click', function(e){
+    var b = e.target.closest ? e.target.closest('.size-btn') : null;
+    if(!b) return;
+    selectedN = parseInt(b.dataset.n, 10);
+    document.querySelectorAll('.size-btn').forEach(function(x){ x.classList.toggle('sel', x === b); });
+  });
+  $('startBtn').addEventListener('click', function(){ ensureAudio(); G.n = selectedN; startRound(); });
+  $('rerollBtn').addEventListener('click', function(){ sfxTap(); G.theme = nextTheme(); $('themeText').textContent = G.theme.text; $('themeScale').innerHTML = scaleHtml(); });
+  $('dealBtn').addEventListener('click', function(){ ensureAudio(); sfxTap(); deal(); });
+  $('handBtn').addEventListener('click', function(){ sfxTap(); showView(); });
+
+  var hold = $('holdCard');
+  hold.addEventListener('pointerdown', function(e){
+    e.preventDefault();
+    try{ hold.setPointerCapture(e.pointerId); }catch(err){}
+    peek(true);
+  });
+  ['pointerup','pointercancel'].forEach(function(ev){ hold.addEventListener(ev, function(){ peek(false); }); });
+  hold.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+  window.addEventListener('blur', function(){ peek(false); });
+
+  $('viewNextBtn').addEventListener('click', function(){ sfxTap(); viewNext(); });
+  $('discBtn').addEventListener('click', function(){ sfxTap(); showOrder(); });
+
+  $('revealBtn').addEventListener('click', function(){ finalized = false; ensureAudio(); startReveal(); });
+
+  // 結果リストのタップで演出をスキップ
+  $('revList').addEventListener('click', function(){ if(G.res && !finalized){ clearLater(); finalize(true); } });
+
+  $('againBtn').addEventListener('click', function(){ ensureAudio(); startRound(); });
+  $('setupBtn').addEventListener('click', function(){ clearLater(); show('s-setup'); });
+  document.querySelectorAll('.quit').forEach(function(b){
+    b.addEventListener('click', function(){
+      if(b.dataset.quit === '1' && !window.confirm('ゲームをやめて人数選択に戻りますか?')) return;
+      clearLater(); show('s-setup');
+    });
+  });
+  $('muteBtn').addEventListener('click', function(){
+    muted = !muted;
+    $('muteBtn').textContent = muted ? '🔇' : '🔊';
+    if(master) master.gain.value = muted ? 0 : 0.9;
+  });
+})();
+</script>
+</body>
+</html>

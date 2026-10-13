@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ハイ&ロー</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-base:#0F1012;
+    --bg-surface:#191B20;
+    --bg-raised:#22252C;
+    --line:#31353D;
+    --text:#F2F1ED;
+    --text-muted:#8B8E97;
+    --radius-card:18px;
+    --accent:#E8C24A;
+    --red:#C8283C;
+    --ink:#1A1B1E;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;overscroll-behavior:none;}
+  body{
+    background:var(--bg-base);
+    color:var(--text);
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #app{
+    width:100%;
+    max-width:460px;
+    height:100vh;
+    display:flex;
+    flex-direction:column;
+    position:relative;
+    overflow:hidden;
+  }
+  h1,h2,h3{margin:0;}
+  button{font-family:inherit;cursor:pointer;border:none;}
+
+  .screen{display:none;flex-direction:column;flex:1;min-height:0;animation:fadeIn .3s ease;}
+  .screen.active{display:flex;}
+  @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+
+  /* ---- setup ---- */
+  #screen-setup{padding:26px 22px;overflow-y:auto;}
+  .eyebrow{color:var(--text-muted);font-size:12px;letter-spacing:.05em;margin-bottom:8px;}
+  .title{font-size:26px;font-weight:900;}
+  .tagline{color:var(--text-muted);font-size:13px;margin-top:10px;line-height:1.7;}
+
+  .diff-grid{display:flex;flex-direction:column;gap:10px;margin-top:24px;}
+  .diff-card{
+    background:var(--bg-surface);border:1.5px solid var(--line);border-radius:var(--radius-card);
+    padding:16px;cursor:pointer;transition:border-color .15s, background .15s;
+  }
+  .diff-card.selected{border-color:var(--accent);background:var(--bg-raised);}
+  .diff-name{font-weight:900;font-size:15.5px;}
+  .diff-rules{margin:10px 0 0;padding-left:18px;color:var(--text-muted);font-size:12.5px;line-height:1.8;}
+
+  .bottombar{padding:16px 22px calc(16px + env(safe-area-inset-bottom));}
+  .btn-primary{
+    width:100%;background:var(--accent);color:#1A1300;border-radius:14px;padding:16px;
+    font-size:15.5px;font-weight:900;
+  }
+  .btn-primary:disabled{background:var(--bg-raised);color:var(--text-muted);}
+  .btn-ghost{
+    width:100%;background:transparent;color:var(--text-muted);border:1px solid var(--line);
+    border-radius:14px;padding:13px;font-size:13.5px;font-weight:700;margin-top:9px;
+  }
+
+  /* ---- play ---- */
+  #screen-play{padding:0;}
+  .play-top{
+    padding:16px 20px 6px;display:flex;justify-content:space-between;align-items:center;
+  }
+  .diff-badge{
+    font-size:11px;font-weight:700;color:var(--text-muted);
+    background:var(--bg-surface);border:1px solid var(--line);border-radius:999px;padding:5px 12px;
+  }
+  .streak-badge{
+    font-size:11px;font-weight:700;color:var(--accent);
+    background:rgba(232,194,74,.1);border:1px solid rgba(232,194,74,.35);border-radius:999px;padding:5px 12px;
+    display:none;
+  }
+
+  .current-line{
+    display:flex;align-items:baseline;justify-content:center;gap:10px;
+    margin:14px 22px 0;
+    padding:10px 18px;
+    background:var(--bg-surface);
+    border:1.5px solid var(--line);
+    border-radius:14px;
+  }
+  .current-line .cl-label{ font-size:12.5px; color:var(--text-muted); font-weight:700; }
+  .current-line .cl-value{ font-size:23px; font-weight:900; letter-spacing:.02em; }
+
+  .requirement{
+    text-align:center;padding:6px 20px 4px;
+    font-size:15px;font-weight:900;letter-spacing:.01em;
+    min-height:24px;
+  }
+  .requirement.hl{ color:var(--text); }
+  .requirement.suit{ color:var(--accent); }
+  .requirement.joker{ color:var(--red); }
+
+  .drag-hint{
+    text-align:center;color:var(--text-muted);font-size:11.5px;
+    padding:0 22px;min-height:16px;opacity:0;transition:opacity .2s ease;
+  }
+  .drag-hint.show{ opacity:1; }
+
+  .card-stage{
+    flex:1;
+    display:flex;align-items:center;justify-content:center;
+    padding:4px 22px 6px;
+  }
+  .card-frame{
+    position:relative;
+    width:100%;
+    max-width:300px;
+    aspect-ratio:5/7;
+    touch-action:none;
+    border-radius:16px;
+    overflow:hidden;
+    box-shadow:0 14px 30px rgba(0,0,0,.5);
+  }
+  .card-layer{
+    position:absolute;inset:0;
+    border-radius:16px;
+    overflow:hidden;
+  }
+  .card-front-content{
+    background:#F7F5EF;
+    z-index:1;
+  }
+  .card-back{
+    z-index:2;
+    background:
+      repeating-linear-gradient(135deg, #1B2440 0 6px, #212C4C 6px 12px);
+    border:6px solid #0F1012;
+    cursor:grab;
+  }
+  .card-back::before{
+    content:'';
+    position:absolute;inset:14px;
+    border:1.5px solid rgba(232,194,74,.5);
+    border-radius:10px;
+  }
+  .card-back-emblem{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  }
+  .card-back-emblem .diamond{
+    width:56px;height:56px;background:rgba(232,194,74,.16);
+    border:2px solid rgba(232,194,74,.6);
+    transform:rotate(45deg);
+    border-radius:6px;
+  }
+
+  .card-fold-flap{
+    position:absolute;
+    z-index:3;
+    background:
+      repeating-linear-gradient(135deg, #232E52 0 6px, #29365E 6px 12px);
+    border-radius:3px;
+    box-shadow:0 8px 14px rgba(0,0,0,.45);
+    opacity:0;
+    pointer-events:none;
+  }
+  .card-fold-flap::before{
+    content:'';
+    position:absolute;inset:0;
+    background:linear-gradient(to bottom, rgba(255,255,255,.35), rgba(255,255,255,0) 45%, rgba(0,0,0,.25) 100%);
+  }
+
+  .corner{
+    position:absolute;
+    display:flex;flex-direction:column;align-items:center;
+    line-height:1;
+  }
+  .corner .r{ font-size:22px; font-weight:900; }
+  .corner .s{ font-size:18px; margin-top:2px; }
+  .corner.tl{ top:14px; left:14px; }
+  .corner.br{ bottom:14px; right:14px; transform:rotate(180deg); }
+
+  .center-suit{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:92px;
+  }
+
+  .joker-face{
+    position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  }
+  .joker-star{
+    width:64px;height:64px;position:relative;
+  }
+  .joker-star .x1, .joker-star .x2{
+    position:absolute;inset:0;
+    border-radius:4px;
+  }
+  .joker-star .x1{ background:var(--red); transform:rotate(0deg); }
+  .joker-star .x2{ background:var(--ink); transform:rotate(45deg); }
+  .joker-word{
+    font-size:20px;font-weight:900;letter-spacing:.12em;color:var(--ink);
+  }
+
+  .flip-btn{
+    margin:14px 22px calc(16px + env(safe-area-inset-bottom));
+    background:var(--accent);color:#1A1300;border-radius:16px;padding:17px;
+    font-size:16px;font-weight:900;
+  }
+  .flip-btn.ask-mode{ background:var(--bg-raised); color:var(--text); border:1.5px solid var(--line); }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- SETUP -->
+  <div class="screen active" id="screen-setup">
+    <div class="eyebrow">HIGH &amp; LOW</div>
+    <div class="title">ハイ&amp;ロー</div>
+    <div class="tagline">次にめくるカードが、今のカードより強いか弱いかを当てるゲーム。正誤の判定はテーブルでどうぞ。</div>
+
+    <div class="diff-grid" id="diffGrid"></div>
+  </div>
+
+  <!-- PLAY -->
+  <div class="screen" id="screen-play">
+    <div class="play-top">
+      <div class="diff-badge" id="diffBadge">-</div>
+      <div class="streak-badge" id="streakBadge">2連続的中が必要</div>
+    </div>
+
+    <div class="current-line" id="currentCardLine"></div>
+    <div class="requirement" id="requirementText"></div>
+
+    <div class="card-stage">
+      <div class="card-frame" id="cardFrame">
+        <div class="card-layer card-front-content" id="cardFrontContent"></div>
+        <div class="card-layer card-back" id="cardBack">
+          <div class="card-back-emblem"><div class="diamond"></div></div>
+        </div>
+        <div class="card-fold-flap" id="cardFoldFlap"></div>
+      </div>
+    </div>
+
+    <div class="drag-hint" id="dragHint">カードをどの方向にでもスライドしてめくれます</div>
+    <button class="flip-btn" id="flipBtn">めくる</button>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  var SUITS = ['spade','heart','diamond','club'];
+  var SUIT_SYMBOL = { spade:'♠', heart:'♥', diamond:'♦', club:'♣' };
+  var SUIT_COLOR  = { spade:'var(--ink)', club:'var(--ink)', heart:'var(--red)', diamond:'var(--red)' };
+
+  var DIFFS = {
+    easy: {
+      label:'ふつう', suitTrigger:false, streak:false,
+      jokerText:'ジョーカー:セーフ',
+      rules:['次のカードが今より強いか弱いかを当てる','ジョーカーが出たらセーフ']
+    },
+    hard: {
+      label:'むずかしい', suitTrigger:true, streak:false,
+      jokerText:'ジョーカー:あなた以外、全員アウト',
+      rules:['次のカードが今より強いか弱いかを当てる','1・13が出たら、次はスートを当てる','ジョーカーが出たらあなた以外、全員アウト']
+    },
+    extreme: {
+      label:'エクストリーム', suitTrigger:true, streak:true,
+      jokerText:'ジョーカー:全員アウト',
+      rules:['次のカードが今より強いか弱いかを当てる','1・13が出たら、次はスートを当てる','ジョーカーが出たら全員アウト','2回連続で的中させる必要がある']
+    }
+  };
+
+  var state = {
+    difficulty: null,
+    deck: [],
+    currentCard: null,   // baseline card (never joker)
+    pendingCard: null,   // the next card, pre-drawn and hidden behind the back cover
+    mode: 'faceup'       // 'faceup' | 'ask' | 'revealing'
+  };
+
+  function el(id){ return document.getElementById(id); }
+  function show(id){
+    document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+    el(id).classList.add('active');
+  }
+  function vibrate(p){ if(navigator.vibrate){ navigator.vibrate(p); } }
+
+  function rankLabel(rank){
+    if(rank===1) return 'A';
+    if(rank===11) return 'J';
+    if(rank===12) return 'Q';
+    if(rank===13) return 'K';
+    return String(rank);
+  }
+
+  // ---------- deck ----------
+  function buildDeck(){
+    var d = [];
+    SUITS.forEach(function(suit){
+      for(var r=1;r<=13;r++){ d.push({ suit:suit, rank:r }); }
+    });
+    d.push({ joker:true });
+    // shuffle
+    for(var i=d.length-1;i>0;i--){
+      var j = Math.floor(Math.random()*(i+1));
+      var t=d[i]; d[i]=d[j]; d[j]=t;
+    }
+    return d;
+  }
+
+  function drawCard(){
+    if(state.deck.length === 0){ state.deck = buildDeck(); }
+    return state.deck.pop();
+  }
+
+  function drawInitialCard(){
+    if(state.deck.length === 0){ state.deck = buildDeck(); }
+    // initial baseline can't be the joker; rotate it deeper into the deck if drawn first
+    var card = state.deck.pop();
+    if(card.joker){
+      state.deck.unshift(card);
+      card = state.deck.pop();
+    }
+    return card;
+  }
+
+  // ---------- card rendering ----------
+  function renderCardInto(container, card){
+    container.innerHTML = '';
+    if(card.joker){
+      var wrap = document.createElement('div');
+      wrap.className = 'joker-face';
+      wrap.innerHTML =
+        '<div class="joker-star"><div class="x1"></div><div class="x2"></div></div>' +
+        '<div class="joker-word">JOKER</div>';
+      container.appendChild(wrap);
+      return;
+    }
+    var color = SUIT_COLOR[card.suit];
+    var symbol = SUIT_SYMBOL[card.suit];
+    var label = rankLabel(card.rank);
+
+    var tl = document.createElement('div');
+    tl.className = 'corner tl';
+    tl.style.color = color;
+    tl.innerHTML = '<div class="r">'+label+'</div><div class="s">'+symbol+'</div>';
+
+    var br = document.createElement('div');
+    br.className = 'corner br';
+    br.style.color = color;
+    br.innerHTML = '<div class="r">'+label+'</div><div class="s">'+symbol+'</div>';
+
+    var center = document.createElement('div');
+    center.className = 'center-suit';
+    center.style.color = color;
+    center.textContent = symbol;
+
+    container.appendChild(tl);
+    container.appendChild(br);
+    container.appendChild(center);
+  }
+
+  function getRequirement(baseline, diffKey){
+    var cfg = DIFFS[diffKey];
+    if(cfg.suitTrigger && (baseline.rank === 1 || baseline.rank === 13)){
+      return { type:'suit', text:'次のカードのスートを当てろ' };
+    }
+    return { type:'hl', text:'次のカードは今より強い?弱い?' };
+  }
+
+  function setRequirementDisplay(req){
+    var elReq = el('requirementText');
+    elReq.className = 'requirement ' + req.type;
+    elReq.textContent = req.text;
+  }
+
+  // ---------- flip sequence: slide-and-bend reveal ----------
+  var cardBack = null, cardFrontContent = null, cardFoldFlap = null, cardFrame = null;
+  var dragState = null; // {startX, startY, ux, uy, frac, cardWidth, cardHeight}
+
+  function updateCurrentCardLine(){
+    var c = state.currentCard;
+    var isRed = (c.suit === 'heart' || c.suit === 'diamond');
+    var color = isRed ? 'var(--red)' : 'var(--text)'; // ink is near-black; on this dark badge it must use the light text color instead
+    var label = rankLabel(c.rank);
+    var symbol = SUIT_SYMBOL[c.suit];
+    el('currentCardLine').innerHTML =
+      '<span class="cl-label">今のカード</span>' +
+      '<span class="cl-value" style="color:'+color+';">'+label+symbol+'</span>';
+  }
+
+  // The back cover peels away as a straight edge at ANY angle (ux,uy is the
+  // reveal direction, a unit vector). The covered region is built as a huge
+  // rectangle trailing behind the cut line, so clip-path naturally limits it
+  // to the card's own box for every angle, diagonals included.
+  function applyPeel(ux, uy, frac, cardW, cardH){
+    var diag = Math.sqrt(cardW*cardW + cardH*cardH);
+    var BIG = diag*2;
+    var cx = cardW/2, cy = cardH/2;
+    var factor = diag*(1 - 2*frac);
+    var lineX = cx + ux*factor, lineY = cy + uy*factor;
+    var perpX = -uy*BIG, perpY = ux*BIG;
+    var dragX = ux*BIG*2, dragY = uy*BIG*2;
+
+    var c1x=lineX+perpX, c1y=lineY+perpY;
+    var c2x=lineX-perpX, c2y=lineY-perpY;
+    var c3x=c2x-dragX,  c3y=c2y-dragY;
+    var c4x=c1x-dragX,  c4y=c1y-dragY;
+
+    function pt(x,y){ return x.toFixed(1)+'px '+y.toFixed(1)+'px'; }
+    cardBack.style.clipPath = 'polygon(' + [pt(c1x,c1y),pt(c2x,c2y),pt(c3x,c3y),pt(c4x,c4y)].join(', ') + ')';
+
+    // a small nudge in the reveal direction, as if the cover is being drawn back
+    cardBack.style.transform = 'translate('+(ux*frac*8).toFixed(1)+'px,'+(uy*frac*8).toFixed(1)+'px)';
+
+    return { lineX: lineX, lineY: lineY };
+  }
+
+  // A short band that rides the peel boundary and looks lifted/bent: it is
+  // its own element (not just a gradient), rotated to lie across the
+  // boundary line and given a highlight + shadow so it reads as the card's
+  // edge curling up as it's dragged back, rather than the surface fading.
+  function updateFold(ux, uy, frac, cardW, cardH, lineX, lineY){
+    if(frac <= 0.015 || frac >= 0.985){ cardFoldFlap.style.opacity = '0'; return; }
+    var diag = Math.sqrt(cardW*cardW + cardH*cardH);
+    var bandLen = diag * 1.15;
+    var bandThick = 30 + Math.min(1, frac*2) * 10; // curls slightly thicker as it lifts further
+
+    var angleDeg = Math.atan2(-uy, -ux) * 180/Math.PI; // band's long axis runs perpendicular to travel
+
+    cardFoldFlap.style.width = bandLen.toFixed(1)+'px';
+    cardFoldFlap.style.height = bandThick.toFixed(1)+'px';
+    cardFoldFlap.style.left = (lineX - bandLen/2).toFixed(1)+'px';
+    cardFoldFlap.style.top = (lineY - bandThick/2).toFixed(1)+'px';
+    cardFoldFlap.style.transform = 'rotate('+(angleDeg+90).toFixed(1)+'deg) scaleY('+(0.85+frac*0.15).toFixed(2)+')';
+    cardFoldFlap.style.opacity = String(Math.min(1, frac*6, (1-frac)*6));
+  }
+
+  function resetBackCover(ux, uy){
+    ux = (typeof ux === 'number') ? ux : -1;
+    uy = (typeof uy === 'number') ? uy : 0;
+    var rect = cardBack.getBoundingClientRect();
+    cardBack.style.transition = 'none';
+    applyPeel(ux, uy, 0, rect.width, rect.height);
+    cardFoldFlap.style.opacity = '0';
+    void cardBack.offsetWidth;
+  }
+
+  function beginAsk(){
+    if(state.mode !== 'faceup') return;
+    state.mode = 'ask';
+    state.pendingCard = drawCard();
+    renderCardInto(cardFrontContent, state.pendingCard); // pre-rendered, hidden behind the back cover
+
+    var req = getRequirement(state.currentCard, state.difficulty);
+    setRequirementDisplay(req);
+    updateCurrentCardLine();
+    resetBackCover();
+
+    el('dragHint').classList.add('show');
+    el('flipBtn').textContent = 'めくる';
+    el('flipBtn').classList.add('ask-mode');
+    vibrate([10]);
+  }
+
+  function onDragStart(e){
+    if(state.mode !== 'ask') return;
+    var rect = cardBack.getBoundingClientRect();
+    dragState = {
+      startX: e.clientX, startY: e.clientY,
+      ux: null, uy: null, frac: 0,
+      cardWidth: rect.width, cardHeight: rect.height
+    };
+    cardBack.setPointerCapture && cardBack.setPointerCapture(e.pointerId);
+    cardBack.style.transition = 'none';
+  }
+
+  function onDragMove(e){
+    if(!dragState) return;
+    var dx = e.clientX - dragState.startX;
+    var dy = e.clientY - dragState.startY;
+    var mag = Math.sqrt(dx*dx + dy*dy);
+    if(mag < 6) return; // ignore tiny jitter before a direction is established
+
+    // the reveal grows from wherever the finger started, not from where it's
+    // heading, so the direction is inverted relative to the raw drag vector
+    var ux = -dx/mag, uy = -dy/mag;
+    dragState.ux = ux; dragState.uy = uy;
+
+    var span = Math.min(dragState.cardWidth, dragState.cardHeight) * 1.4; // lower sensitivity: needs a fuller drag
+    var frac = Math.min(1, mag/span);
+    dragState.frac = frac;
+
+    var line = applyPeel(ux, uy, frac, dragState.cardWidth, dragState.cardHeight);
+    updateFold(ux, uy, frac, dragState.cardWidth, dragState.cardHeight, line.lineX, line.lineY);
+  }
+
+  function onDragEnd(){
+    if(!dragState) return;
+    var frac = dragState.frac;
+    var ux = dragState.ux || -1, uy = dragState.uy || 0;
+    dragState = null;
+    if(frac >= 0.45){
+      completeReveal(ux, uy);
+    } else {
+      cardBack.style.transition = 'clip-path .25s ease, transform .25s ease';
+      applyPeel(ux, uy, 0, cardBack.getBoundingClientRect().width, cardBack.getBoundingClientRect().height);
+      cardFoldFlap.style.opacity = '0';
+    }
+  }
+
+  function completeReveal(ux, uy){
+    if(state.mode !== 'ask') return;
+    ux = (typeof ux === 'number') ? ux : -1;
+    uy = (typeof uy === 'number') ? uy : 0;
+    state.mode = 'revealing';
+    el('dragHint').classList.remove('show');
+    el('flipBtn').disabled = true;
+    cardFoldFlap.style.opacity = '0';
+
+    var rect = cardBack.getBoundingClientRect();
+    cardBack.style.transition = 'clip-path .16s ease-out, transform .16s ease-out';
+    applyPeel(ux, uy, 1, rect.width, rect.height);
+    vibrate([15]);
+    setTimeout(afterRevealResolved, 190);
+  }
+
+  function afterRevealResolved(){
+    var drawn = state.pendingCard;
+
+    if(drawn.joker){
+      var cfg = DIFFS[state.difficulty];
+      setRequirementDisplay({ type:'joker', text:cfg.jokerText });
+      vibrate([40,30,40,30,120]);
+      setTimeout(function(){
+        renderCardInto(cardFrontContent, state.currentCard);
+        var req = getRequirement(state.currentCard, state.difficulty);
+        setRequirementDisplay(req);
+        updateCurrentCardLine();
+        finishReveal();
+      }, 1600);
+      return;
+    }
+
+    state.currentCard = drawn;
+    updateCurrentCardLine();
+    setRequirementDisplay({ type:'hl', text:'' });
+    finishReveal();
+  }
+
+  function finishReveal(){
+    state.mode = 'faceup';
+    el('flipBtn').disabled = false;
+    el('flipBtn').textContent = 'めくる';
+    el('flipBtn').classList.remove('ask-mode');
+  }
+
+  el('flipBtn').addEventListener('click', function(){
+    if(state.mode === 'faceup'){ beginAsk(); }
+    else if(state.mode === 'ask' && !dragState){ completeReveal(); }
+  });
+
+  // ---------- setup screen ----------
+  var diffGrid = el('diffGrid');
+  Object.keys(DIFFS).forEach(function(key){
+    var cfg = DIFFS[key];
+    var card = document.createElement('div');
+    card.className = 'diff-card';
+    var rulesHtml = cfg.rules.map(function(r){ return '<li>'+r+'</li>'; }).join('');
+    card.innerHTML = '<div class="diff-name">'+cfg.label+'</div><ul class="diff-rules">'+rulesHtml+'</ul>';
+    card.addEventListener('click', function(){
+      document.querySelectorAll('.diff-card').forEach(function(c){ c.classList.remove('selected'); });
+      card.classList.add('selected');
+      state.difficulty = key;
+      el('startBtn').disabled = false;
+    });
+    diffGrid.appendChild(card);
+  });
+
+  var startBtn = document.createElement('button');
+  startBtn.className = 'btn-primary';
+  startBtn.id = 'startBtn';
+  startBtn.textContent = 'はじめる';
+  startBtn.disabled = true;
+  var bottombar = document.createElement('div');
+  bottombar.className = 'bottombar';
+  bottombar.appendChild(startBtn);
+  el('screen-setup').appendChild(bottombar);
+
+  startBtn.addEventListener('click', function(){
+    if(!state.difficulty) return;
+    cardFrame = el('cardFrame');
+    cardBack = el('cardBack');
+    cardFrontContent = el('cardFrontContent');
+    cardFoldFlap = el('cardFoldFlap');
+    cardBack.addEventListener('pointerdown', onDragStart);
+    cardBack.addEventListener('pointermove', onDragMove);
+    cardBack.addEventListener('pointerup', onDragEnd);
+
+    state.deck = buildDeck();
+    state.currentCard = drawInitialCard();
+    state.mode = 'faceup';
+
+    el('diffBadge').textContent = DIFFS[state.difficulty].label;
+    el('streakBadge').style.display = DIFFS[state.difficulty].streak ? 'inline-block' : 'none';
+
+    renderCardInto(cardFrontContent, state.currentCard);
+    setRequirementDisplay({ type:'hl', text:'' });
+    updateCurrentCardLine();
+    finishReveal();
+
+    show('screen-play');
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        cardBack.style.transition = 'none';
+        applyPeel(-1, 0, 1, cardFrame.clientWidth, cardFrame.clientHeight); // start already peeled away, face-up
+        cardFoldFlap.style.opacity = '0';
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>
