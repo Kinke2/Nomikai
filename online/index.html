@@ -9,7 +9,7 @@
 <!--
   飲み会ゲーム集 オンライン ロビー(開発中)
   QRコードで1度だけ部屋に参加し、ロビーからゲームを選ぶ。ロビーに戻れば同じ部屋のまま別のゲームを選べる。
-  各ゲーム: g-wolf.js(ワードウルフ) / g-lupi.js(最小ユニーク) / g-shimei.js(秘密指名ゲーム) / g-kankaku.js(感覚ならべ) / g-gaman.js(我慢くらべ入札) / g-onenight.js(ワンナイト人狼)
+  各ゲーム: g-wolf.js(ワードウルフ) / g-lupi.js(最小ユニーク) / g-shimei.js(秘密指名ゲーム) / g-kankaku.js(感覚ならべ) / g-gaman.js(我慢くらべ入札) / g-chicken.js(チキンレース) / g-onenight.js(ワンナイト人狼)
   共通基盤: online-core.js(部屋・通信・QR・並べ替えUI。参考文献は各ファイル冒頭)
   オフライン版のゲーム一覧: ../games.js(ホストは、ルームを維持したまま、オフライン版のゲームを開ける)
   外部スクリプト: PeerJS(https://peerjs.com/)、qrcode-generator(https://github.com/kazuhikoarase/qrcode-generator)
@@ -26,6 +26,7 @@
 <script src="g-shimei.js"></script>
 <script src="g-kankaku.js"></script>
 <script src="g-gaman.js"></script>
+<script src="g-chicken.js"></script>
 <script src="g-onenight.js"></script>
 <script>NomikaiOnline.startHub();</script>
 <script src="../terms.js"></script>
