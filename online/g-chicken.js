@@ -419,6 +419,12 @@
     if(q('rAgain')) q('rAgain').onclick = function(){ ctx.send({ t: 'resetup' }); };
   }
 
+  // 開発中モード用のCPU(進む/降りるをランダムに選ぶだけ)
+  function bot(v, me, rnd){
+    if(!v.inPart || v.phase !== 'choose' || v.status[me] !== 'in' || v.myChoice) return null;
+    return { t: 'choose', c: rnd(2) ? 'go' : 'leave' };
+  }
+
   NO.register({
     id: 'chicken', emoji: '🐔', title: 'チキンレース', accent: '#F2994A', accentInk: '#2A1500', min: 3, max: 8,
     tagline: '進むか降りるか。💣が出たら進んだ人はドボン。一発勝負も複数ラウンドも選べる。',
@@ -429,6 +435,6 @@
       '<b>一発勝負</b>=1ラウンドの最下位が飲む。<b>複数ラウンド</b>(3・5・7)=合計点の最下位が飲む。同点なら全員が飲む。',
       '「次が💣の確率」は公開情報から正確に計算して表示する。アプリは確率も結果も補正しない。'
     ],
-    game: game, render: render
+    game: game, bot: bot, render: render
   });
 })();

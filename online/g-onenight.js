@@ -677,6 +677,32 @@
     }
   }
 
+  // 開発中モード用のCPU(夜の行動・投票をランダムに行うだけ。昼の議論はホストが進める)
+  function bot(v, me, rnd){
+    if(!v.inPart) return null;
+    var pick = function(a){ return a[rnd(a.length)]; };
+    if(v.phase === 'night'){
+      if(v.done || !v.need) return null;
+      var o = v.others || [];
+      switch(v.need){
+        case 'ack': return { t: 'night', k: 'ack' };
+        case 'peek-opt': return rnd(2) && v.nBack ? { t: 'night', k: 'peek', c: rnd(v.nBack) } : { t: 'night', k: 'skip' };
+        case 'rob-opt': return rnd(2) && o.length ? { t: 'night', k: 'rob', target: pick(o) } : { t: 'night', k: 'skip' };
+        case 'seer':
+          if(v.nBack >= 2 && rnd(2)){ var a = rnd(v.nBack), b = (a + 1 + rnd(v.nBack - 1)) % v.nBack; return { t: 'night', k: 'seerC', cs: [a, b] }; }
+          return o.length ? { t: 'night', k: 'seerP', target: pick(o) } : null;
+        case 'swap':
+          if(o.length < 2) return null;
+          var i = rnd(o.length), j = (i + 1 + rnd(o.length - 1)) % o.length; return { t: 'night', k: 'swap', a: o[i], b: o[j] };
+        case 'drunk': return v.nBack ? { t: 'night', k: 'drink', c: rnd(v.nBack) } : null;
+        case 'bake': return o.length ? { t: 'night', k: 'bake', target: pick(o) } : null;
+      }
+      return null;
+    }
+    if(v.phase === 'vote' && !v.myVote){ var oo = v.others || []; return oo.length ? { t: 'vote', target: oo[rnd(oo.length)] } : null; }
+    return null;
+  }
+
   NO.register({
     id: 'onenight', emoji: '🌙', title: 'ワンナイト人狼', accent: '#8C9CFF', accentInk: '#0C1030', min: 3, max: 10,
     tagline: '役職カードがスマホに配られる。一晩で能力を使い、朝に話し合って人狼を処刑しよう。役職はホストが選べる。',
@@ -687,6 +713,6 @@
       '<b>村人陣営</b>は人狼を処刑すれば勝ち。<b>人狼陣営</b>は人狼が処刑されなければ勝ち。<b>てるてる</b>は処刑されれば単独で勝ち。',
       '<b>負けた陣営の人が飲む。</b>勝敗は最終的に持っているカードで決まる。'
     ],
-    game: game, render: render
+    game: game, bot: bot, render: render
   });
 })();

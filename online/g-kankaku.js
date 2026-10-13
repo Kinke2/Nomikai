@@ -319,6 +319,13 @@
     }
   }
 
+  // 開発中モード用のCPU(ヒントを適当に入力するだけ。並べ替えはホストが行う)
+  function bot(v, me, rnd){
+    if(!v.inPart || v.phase !== 'clue' || (v.clues && v.clues[me])) return null;
+    var w = ['なんとなく', 'ふつう', 'ちょっと', 'けっこう', 'かなり', 'うーん'];
+    return { t: 'clue', text: w[rnd(w.length)] };
+  }
+
   NO.register({
     id: 'kankaku', emoji: '📏', title: '感覚ならべ', accent: '#F17FB1', accentInk: '#2B0A18', min: 3, max: 8,
     tagline: '各自のスマホに秘密の数字。お題に合うひとことで大きさを伝えて、みんなで小さい順に並べる。',
@@ -328,6 +335,6 @@
       '全員の画面で同じ並びを共有し、カードを<b>ドラッグして小さい順に並べる</b>。',
       '答え合わせで<b>一番ズレた人が飲む</b>。順位のズレが同率のときだけ数値のズレ幅で決着。それも同じなら同率で全員。'
     ],
-    game: game, render: render
+    game: game, bot: bot, render: render
   });
 })();

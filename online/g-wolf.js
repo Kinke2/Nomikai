@@ -238,6 +238,20 @@
     if(v.phase !== 'vote') ctx.local.pick = null;
   }
 
+  // 開発中モード用のCPU(1人で動作確認するためのもの)。自分に見えている情報(view)だけで、ランダムに操作する。ゲーム結果への補正はしない。
+  function bot(v, me, rnd){
+    if(!v.inPart) return null;
+    if(v.phase === 'reveal') return v.iAmReady ? null : { t: 'ready' };
+    if(v.phase === 'vote'){
+      if(v.myVote) return null;
+      var c = (v.cands || []).filter(function(x){ return x !== me; });
+      return c.length ? { t: 'vote', target: c[rnd(c.length)] } : null;
+    }
+    if(v.phase === 'guess') return v.isWolf ? { t: 'guess', text: 'うーん、なんだろう' } : null;
+    if(v.phase === 'judge') return v.canJudge ? { t: 'judge', ok: rnd(2) === 1 } : null;
+    return null;
+  }
+
   NO.register({
     id: 'wolf', emoji: '🐺', title: 'ワードウルフ', accent: '#C792EA', accentInk: '#1E0C2B', min: 3, max: 8,
     tagline: 'みんなに少し違うワードが配られる。1人だけ違うワードの「ウルフ」を話し合いで探し出せ。',
@@ -248,6 +262,6 @@
       'ウルフを当てても、ウルフが<b>多数派のワードを当てたら逆転</b>。',
       '負けた側が飲む(ウルフの勝ち → 村人全員、村の勝ち → ウルフ)。'
     ],
-    game: game, render: render
+    game: game, bot: bot, render: render
   });
 })();

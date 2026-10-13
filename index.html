@@ -171,6 +171,17 @@
   });
 })();
 </script>
+<script>
+/* 開発中モード: タイトルを5回タップ(3秒以内)すると、1人で動作確認できるオンライン版(?dev=1)に入る */
+(function(){
+  var el = document.querySelector('.brand'), n = 0, t = 0;
+  if(!el) return;
+  el.addEventListener('click', function(){
+    var now = Date.now(); n = (now - t > 3000) ? 1 : n + 1; t = now;
+    if(n >= 5){ n = 0; location.href = 'online/index.html?dev=1'; }
+  });
+})();
+</script>
 <script src="terms.js"></script>
 </body>
 </html>

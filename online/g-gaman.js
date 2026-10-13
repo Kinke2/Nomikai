@@ -255,6 +255,13 @@
     if(v.phase !== 'bid') ctx.local.bid = null;
   }
 
+  // 開発中モード用のCPU(持ち点の範囲でランダムに入札するだけ)
+  function bot(v, me, rnd){
+    if(!v.inPart || v.phase !== 'bid' || v.myBid != null) return null;
+    var pts = v.points[me] || 0;
+    return { t: 'bid', n: rnd(Math.min(pts, 5) + 1) };
+  }
+
   NO.register({
     id: 'gaman', emoji: '🪙', title: '我慢くらべ入札', accent: '#6FCF97', accentInk: '#0B2415', min: 3, max: 8,
     tagline: '持ち点10を5ラウンドに配分。最高入札は安全、残りで一番低い人が飲む。',
@@ -264,6 +271,6 @@
       '入札した点数は<b>勝っても負けても戻らない</b>。持ち点は使った分だけ減り、次のラウンドに持ち越す。',
       '飲む量(ひと口〜一気)はラウンドごとに抽選。全員が同じ入札なら誰も飲まない。'
     ],
-    game: game, render: render
+    game: game, bot: bot, render: render
   });
 })();

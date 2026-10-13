@@ -141,6 +141,12 @@
     if(v.phase !== 'pick') ctx.local.pick = null;
   }
 
+  // 開発中モード用のCPU(ランダムに選ぶだけ)
+  function bot(v, me, rnd){
+    if(!v.inPart || v.phase !== 'pick' || v.myPick) return null;
+    return { t: 'pick', n: 1 + rnd(v.N) };
+  }
+
   NO.register({
     id: 'lupi', emoji: '🔢', title: '最小ユニーク', accent: '#E8C24A', accentInk: '#2B2108', min: 3, max: 8,
     tagline: '誰とも被らない、いちばん小さい数字を選んだ人が勝ち。被った人は飲む。誰も被らなければ最大の人が飲む。',
@@ -151,6 +157,6 @@
       '<b>誰も被らなかったとき</b>(全員の数字がバラバラ)は、<b>いちばん大きい数字を選んだ人がアウト</b>で飲む。',
       '全員が被ったら勝者なしで、全員飲む。'
     ],
-    game: game, render: render
+    game: game, bot: bot, render: render
   });
 })();

@@ -140,6 +140,13 @@
     if(v.phase !== 'vote') ctx.local.pick = null;
   }
 
+  // 開発中モード用のCPU(ランダムに指名するだけ)
+  function bot(v, me, rnd){
+    if(!v.inPart || v.phase !== 'vote' || v.myVote) return null;
+    var c = v.part.filter(function(x){ return x !== me; });
+    return c.length ? { t: 'vote', target: c[rnd(c.length)] } : null;
+  }
+
   NO.register({
     id: 'shimei', emoji: '🫵', title: '秘密指名ゲーム', accent: '#FF8A5B', accentInk: '#2B1006', min: 3, max: 10,
     tagline: 'お題に当てはまる人を、こっそり指名。いちばん指名された人が飲む。誰が入れたかは内緒。',
@@ -149,6 +156,6 @@
       '全員の投票がそろったら票数だけを発表。<b>最多得票の人が飲む</b>(同票トップは全員)。',
       '誰が誰に入れたかは、アプリ上では公開されない。全員が同じ票数ならノーカウント。'
     ],
-    game: game, render: render
+    game: game, bot: bot, render: render
   });
 })();

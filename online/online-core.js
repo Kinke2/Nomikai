@@ -344,6 +344,10 @@
 
     var params = new URLSearchParams(global.location.search);
     var urlRoom = (params.get('room') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
+    /* 開発中モード(?dev=1): ホスト1人で動作確認するためのモード。通信(PeerJS)を使わず、CPU(ボット)を何人か参加させる。
+     * CPUは自分に見えている情報(view)だけでランダムに操作する。ゲームの乱数・結果には一切手を加えない。
+     * 動作確認専用。CPUが入った結果は、研究などのデータとして使わないこと。 */
+    var devMode = params.get('dev') === '1' && !urlRoom;
 
     var S = {
       role: null,            // 'host' | 'client'
@@ -415,6 +419,12 @@
       var H = { code: code, players: [], G: null, phase: 'lobby', gameId: null, nextId: 1, tr: null, connToPid: {} };
       H.players.push({ id: 'p0', name: name || 'ホスト', token: null, connId: null, connected: true, host: true });
       S.role = 'host'; S.code = code; S.me = 'p0'; S.H = H;
+      if(devMode){
+        H.code = S.code = 'DEV'; S.link = '';
+        H.tr = { send: function(){}, close: function(){} };    // 通信なし(ホストの端末だけで完結)
+        for(var bi = 0; bi < 3; bi++) devAddBot();
+        enterLobby(); return;
+      }
       var settled = false;
       H.tr = getTransport().host(code, {
         onReady: function(){
@@ -433,8 +443,37 @@
         onClose: function(connId){ hostOnClose(connId); }
       });
     }
+    function devAddBot(){
+      var H = S.H; if(!H || H.phase !== 'lobby' || H.players.length >= HUB_MAX) return;
+      var n = H.players.filter(function(p){ return p.bot; }).length + 1;
+      H.players.push({ id: 'p' + (H.nextId++), name: 'CPU' + n, token: null, connId: null, connected: true, host: false, bot: true });
+    }
+    function devRemoveBot(){
+      var H = S.H; if(!H || H.phase !== 'lobby') return;
+      for(var i = H.players.length - 1; i >= 0; i--){ if(H.players[i].bot){ H.players.splice(i, 1); return; } }
+    }
+    // CPUの操作: 少し間をおいて、1人ずつ自分の view を見て動く。何もすることがなければ止まる(再描画のたびに再スケジュール)
+    function scheduleBots(){
+      var H = S.H;
+      if(!devMode || !H || H.phase !== 'play' || !H.G || H.botTimer) return;
+      var bots = H.players.filter(function(p){ return p.bot; });
+      if(!bots.length) return;
+      H.botTimer = setTimeout(function(){
+        H.botTimer = null;
+        var gd0 = REGISTRY[H.gameId];
+        if(S.H !== H || H.phase !== 'play' || !H.G || !gd0 || !gd0.bot) return;
+        bots.forEach(function(b, i){
+          setTimeout(function(){
+            if(S.H !== H || H.phase !== 'play' || !H.G) return;
+            var a = null;
+            try{ a = gd0.bot(gd0.game.view(H.G, b.id), b.id, randInt); }catch(e){ a = null; }
+            if(a) hostAct(b.id, a);
+          }, i * 350 + randInt(300));
+        });
+      }, 700 + randInt(600));
+    }
     function hostPublicPlayers(){
-      return S.H.players.map(function(p){ return { id: p.id, name: p.name, connected: p.connected, host: !!p.host }; });
+      return S.H.players.map(function(p){ return { id: p.id, name: p.name, connected: p.connected, host: !!p.host, bot: !!p.bot }; });
     }
     function hostSend(pid, msg){
       var p = S.H.players.filter(function(x){ return x.id === pid; })[0];
@@ -458,6 +497,7 @@
         H.players.forEach(function(p){
           hostSend(p.id, { t: 'view', game: H.gameId, view: gd.game.view(H.G, p.id), players: players, waiting: waiting, me: p.id });
         });
+        scheduleBots();
       }
     }
     function hostOnMessage(connId, msg){
@@ -655,10 +695,15 @@
         (S.off ? '<div class="off-banner">🍺 ホストが「' + esc(S.off) + '」(オフライン版)を遊んでいます。ルームはそのままなので、そのままお待ちください。</div>' : '') +
         '<div class="eyebrow" style="margin-top:' + (S.off ? '14px' : '0') + '">ロビー</div><h2 class="title" style="font-size:22px">オンライン ロビー<span class="badge-dev">開発中</span></h2>' +
         '<div class="sub-text" style="margin-top:6px">QRコードを読み取る/部屋コードを入力して参加。全員そろったらホストがゲームを選ぶ。</div>' +
-        '<div class="qr" id="qrBox">' + (qr || '<span style="color:#333;font-size:12px;text-align:center;padding:10px">QRを表示できませんでした。下のコードかリンクを共有してください。</span>') + '</div>' +
-        '<div class="code" id="roomCode">' + esc(S.code) + '</div>' +
-        '<div class="link" id="roomLink">' + esc(S.link || '') + '</div>' +
-        '<button class="btn-ghost" id="copyLink" style="margin-top:12px">リンクをコピー</button>' +
+        (devMode
+          ? '<div class="off-banner" id="devBox">🛠 開発中モード(1人で動作確認)。通信なし。参加者はCPUです。<div style="display:flex;align-items:center;gap:14px;margin-top:10px"><span>CPU ' + players.filter(function(p){ return p.bot; }).length + ' 人</span>' +
+            '<button class="btn-ghost" id="devMinus" style="width:48px;margin:0;padding:8px 0">−</button><button class="btn-ghost" id="devPlus" style="width:48px;margin:0;padding:8px 0">＋</button></div>' +
+            '<div style="font-size:11px;font-weight:500;margin-top:8px;opacity:.85">CPUは見えている情報だけでランダムに操作します(結果への補正なし)。動作確認専用で、研究データには使わないでください。</div></div>' +
+            '<div class="code" id="roomCode" style="display:none">DEV</div>'
+          : '<div class="qr" id="qrBox">' + (qr || '<span style="color:#333;font-size:12px;text-align:center;padding:10px">QRを表示できませんでした。下のコードかリンクを共有してください。</span>') + '</div>' +
+            '<div class="code" id="roomCode">' + esc(S.code) + '</div>' +
+            '<div class="link" id="roomLink">' + esc(S.link || '') + '</div>' +
+            '<button class="btn-ghost" id="copyLink" style="margin-top:12px">リンクをコピー</button>') +
         '<div class="section-label">参加者(' + players.length + '/' + HUB_MAX + '人)</div><div class="plist" id="plist">' + plist + '</div>' +
         '<div class="section-label">' + (isHost ? 'ゲームを選ぶ' : 'ゲーム一覧(ホストが選びます)') + '</div>' +
         '<div class="glist" id="glist">' + cards + '</div>' +
@@ -666,9 +711,11 @@
           '<div class="sub-text">遊んでいる間も、みんなの参加は切れません。画面上の「← ルームに戻る」でロビーに戻れます。</div>' : '') +
         (S.lastGame ? '<div class="sub-text" style="text-align:center">さっき遊んだゲーム: ' + esc(S.lastGame) + '</div>' : '') +
         '<div style="height:18px"></div>';
-      $('copyLink').onclick = function(){
+      if($('copyLink')) $('copyLink').onclick = function(){
         try{ global.navigator.clipboard.writeText(S.link); toast('リンクをコピーしました'); }catch(e){ toast('コピーできませんでした。リンクを長押しでコピーしてください'); }
       };
+      if($('devPlus')) $('devPlus').onclick = function(){ devAddBot(); hostBroadcast(); renderLobby(); };
+      if($('devMinus')) $('devMinus').onclick = function(){ devRemoveBot(); hostBroadcast(); renderLobby(); };
       if(isHost){
         $('c-lobby').querySelectorAll('.gcard[data-g]').forEach(function(b){ b.onclick = function(){ hostSelectGame(b.dataset.g); }; });
         $('c-lobby').querySelectorAll('.gcard[data-off]').forEach(function(b){ b.onclick = function(){ hostOpenOffline(b.dataset.off); }; });
@@ -723,7 +770,7 @@
     function updateTopbar(){
       $('tbCode').textContent = S.code || '-';
       var on = S.players.filter(function(p){ return p.connected; }).length;
-      $('tbInfo').textContent = on + '/' + S.players.length + '人 接続中';
+      $('tbInfo').textContent = devMode ? '🛠 開発中モード(CPU ' + S.players.filter(function(p){ return p.bot; }).length + '人)' : on + '/' + S.players.length + '人 接続中';
       $('mForce').style.display = (S.role === 'host' && S.mode === 'game') ? 'block' : 'none';
       $('mLobby').style.display = (S.role === 'host' && S.mode !== 'lobby') ? 'block' : 'none';
     }
@@ -788,7 +835,7 @@
     }
 
     global.NOMIKAI_DEBUG = { state: S };   // テスト用に状態を覗けるようにしてあるだけ(書き換えには使わない)
-    renderEntry();
+    if(devMode){ startHost(lsGet('nomikai_name') || 'ホスト'); } else renderEntry();
   }
 
   global.NomikaiOnline = {
