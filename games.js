@@ -73,25 +73,6 @@ window.GAMES = [
     file: 'games/bomb-tap.html'
   },
   {
-<<<<<<< HEAD
-=======
-    id: 'chinchiro',
-    title: 'チンチロ',
-    tagline: 'サイコロをお椀に投げ入れて出目を決める。',
-    emoji: '🎲',
-    accent: '#E8C24A',
-    file: 'games/chinchiro.html'
-  },
-  {
-    id: 'high-low',
-    title: 'ハイ&ロー',
-    tagline: '次のカードは今より強い?弱い?トランプ1デッキで対戦。',
-    emoji: '🃏',
-    accent: '#C8283C',
-    file: 'games/high-low.html'
-  },
-  {
->>>>>>> 00db22e02adcba43448b61bf99b61f1d6c925dbf
     id: 'horse-race',
     title: '競馬',
     tagline: '頭数を決めてスタート。ビリになった馬の番号を発表。',
@@ -108,7 +89,6 @@ window.GAMES = [
     file: 'games/nanja-monja.html'
   },
   {
-<<<<<<< HEAD
     id: 'kankaku-narabe',
     title: '感覚ならべ',
     tagline: 'お題に合う言葉だけで数字を伝えて、小さい順に並ぶ。いちばんズレた人が飲む。',
@@ -123,22 +103,6 @@ window.GAMES = [
     emoji: '🗳️',
     accent: '#4FC3D9',
     file: 'games/itsuwari-tasuuketsu.html'
-=======
-    id: 'mine-babanuki',
-    title: '地雷ババ引き',
-    tagline: 'マスを順にめくる。地雷はたった1つ。引いたら、暗転。',
-    emoji: '🚩',
-    accent: '#5FD0A8',
-    file: 'games/mine-babanuki.html'
-  },
-  {
-    id: 'last-tap',
-    title: 'ラストタップ',
-    tagline: '指を置いて、目標の秒数で離せ。いちばんズレた人が飲む。',
-    emoji: '⏱️',
-    accent: '#8B8FF0',
-    file: 'games/last-tap.html'
->>>>>>> 00db22e02adcba43448b61bf99b61f1d6c925dbf
   }
 
   // 新しいゲームはこの下に追加していく
