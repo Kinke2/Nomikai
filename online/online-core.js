@@ -301,6 +301,8 @@
    *   render(root, ctx) = 画面の描画 */
   var REGISTRY = {}, ORDER = [];
   function register(def){ REGISTRY[def.id] = def; if(ORDER.indexOf(def.id) < 0) ORDER.push(def.id); }
+  /* 隠しゲーム(def.hidden)。def.reveal(ホストの名前) が true のときだけ、ロビーに出して選べる。開発中モード(?dev=1)では常に出す。
+   * 通常の「ゲーム紹介」の一覧には出さない。 */
 
   function startHub(){
     var app = document.getElementById('app');
@@ -362,7 +364,7 @@
     function renderEntry(){
       var saved = lsGet('nomikai_name') || '';
       var joinOnly = !!urlRoom;
-      var list = ORDER.map(function(id){ var d = REGISTRY[id]; return '<div class="rule-row"><div class="rule-num">' + d.emoji + '</div><div class="rule-text"><b>' + esc(d.title) + '</b>(' + d.min + '〜' + d.max + '人)<br><span style="color:var(--text-muted)">' + esc(d.tagline) + '</span></div></div>'; }).join('');
+      var list = ORDER.filter(function(id){ return !REGISTRY[id].hidden; }).map(function(id){ var d = REGISTRY[id]; return '<div class="rule-row"><div class="rule-num">' + d.emoji + '</div><div class="rule-text"><b>' + esc(d.title) + '</b>(' + d.min + '〜' + d.max + '人)<br><span style="color:var(--text-muted)">' + esc(d.tagline) + '</span></div></div>'; }).join('');
       $('c-entry').innerHTML =
         '<div class="eyebrow">NOMIKAI GAMES ONLINE</div>' +
         '<h1 class="title">オンライン ロビー<span class="badge-dev">開発中</span></h1>' +
@@ -550,7 +552,7 @@
     }
     function hostSelectGame(id){
       var H = S.H, d = REGISTRY[id];
-      if(!d || H.phase !== 'lobby') return;
+      if(!d || H.phase !== 'lobby' || !gameVisible(id, H.players)) return;
       var n = H.players.filter(function(p){ return p.connected; }).length;
       if(n < d.min || n > d.max) return;
       H.gameId = id; H.phase = 'rules';
@@ -666,6 +668,12 @@
       if(S.role === 'host'){ S.players = hostPublicPlayers(); }
       renderLobby(); updateTopbar(); show('c-lobby');
     }
+    function gameVisible(id, players){
+      var d = REGISTRY[id]; if(!d) return false;
+      if(!d.hidden || devMode) return true;
+      var h = (players || []).filter(function(p){ return p.host; })[0];
+      try{ return !!(h && d.reveal && d.reveal(h.name)); }catch(e){ return false; }
+    }
     function renderLobby(){
       var players = S.role === 'host' ? hostPublicPlayers() : S.players;
       S.players = players;
@@ -673,7 +681,7 @@
       var qr = qrHtml(S.link);
       var plist = players.map(function(p){ return chipHtml(p.id, players) + ''; }).join('');
       var isHost = S.role === 'host';
-      var cards = ORDER.map(function(id){
+      var cards = ORDER.filter(function(id){ return gameVisible(id, players); }).map(function(id){
         var d = REGISTRY[id];
         var ok = online >= d.min && online <= d.max;
         var why = online < d.min ? 'あと' + (d.min - online) + '人必要' : (online > d.max ? d.max + '人まで' : '');
