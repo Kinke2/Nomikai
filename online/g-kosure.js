@@ -3,7 +3,7 @@
   画面の真ん中に棒が出る。それをひたすら指で擦って(上下に往復)、いちばん先に N 回(初期値 50 回)擦った人の勝ち。スピード勝負。
   いちばん擦れていない人(最下位)が飲む。みんなの進み具合は画面の上にリアルタイムで見える。
   隠しゲーム: ホストの名前が「チンコ」「ちんこ」のときだけロビーに出る(開発中モード(?dev=1)では常に出る)。出し分けは online-core.js 側。
-  数え方: 指が一方向に一定距離(約 30px)動いて、向きが反転するたびに 1 回。左右の動きは数えない。各自の端末が数えて、回数をホストに送る。
+  数え方: (複数の指で触れても、最初に触れた1本だけが有効。)指が一方向に一定距離(約 30px)動いて、向きが反転するたびに 1 回。左右の動きは数えない。各自の端末が数えて、回数をホストに送る。
   公平性: アプリは回数をそのまま集計し、「いちばん先に目標回数に達した人」を勝者にするだけ(補正・加工・ハンデは一切なし)。
           勝者は、ホストに「目標回数に達した」という知らせが届いた順(先着)で決まる。回線の遅れの差は補正していない(ホスト自身の遅れがゼロな分、わずかに有利)。
           回数は各自の端末が数えて申告する方式のため、改造すればごまかせる(飲み会で遊ぶ前提。研究データには使わないこと)。
@@ -234,15 +234,20 @@
         else if(!L.timer) L.timer = setTimeout(flush, 90);
       }
       // 上下の往復を数える: 一方向に thr だけ動いたあと、反対向きに thr 動くと 1 回(動き始めの1回目は thr 動いた時点で数える)
-      var thr = 30, down = false, ext = 0, dir = 0;
-      zone.addEventListener('pointerdown', function(e){ down = true; ext = e.clientY; dir = 0; try{ zone.setPointerCapture(e.pointerId); }catch(x){} e.preventDefault(); });
+      // 複数の指で同時に触れても、最初に触れた1本だけを有効にする(他の指の動きは数えない)。その指を離したら、次に触れた指が有効になる
+      var thr = 30, active = null, ext = 0, dir = 0;
+      zone.addEventListener('pointerdown', function(e){
+        e.preventDefault();
+        if(active !== null) return;
+        active = e.pointerId; ext = e.clientY; dir = 0; try{ zone.setPointerCapture(e.pointerId); }catch(x){}
+      });
       zone.addEventListener('pointermove', function(e){
-        if(!down) return; var y = e.clientY;
+        if(e.pointerId !== active) return; var y = e.clientY;
         if(dir === 0){ if(Math.abs(y - ext) >= thr){ dir = y > ext ? 1 : -1; ext = y; stroke(); } return; }
         if(dir === 1){ if(y > ext) ext = y; else if(ext - y >= thr){ dir = -1; ext = y; stroke(); } }
         else { if(y < ext) ext = y; else if(y - ext >= thr){ dir = 1; ext = y; stroke(); } }
       });
-      ['pointerup', 'pointercancel'].forEach(function(n){ zone.addEventListener(n, function(){ down = false; dir = 0; }); });
+      ['pointerup', 'pointercancel'].forEach(function(n){ zone.addEventListener(n, function(e){ if(e.pointerId === active){ active = null; dir = 0; } }); });
       zone.addEventListener('contextmenu', function(e){ e.preventDefault(); });
       return;
     }
