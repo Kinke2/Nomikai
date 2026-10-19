@@ -1,7 +1,7 @@
 /*
   高速シェイク(オンライン版・隠しゲーム)
   スマホを持って、制限時間(初期値10秒)のあいだ、ひたすら振り回す。振った回数がいちばん多い人の勝ち。いちばん少ない人(最下位)が飲む。
-  隠しゲーム: ホストと参加者全員の名前が「チンコ」「ちんこ」のときだけロビーに出る(同名は自動で「ちんこ2」のようになるので、末尾の数字は無視する)。
+  隠しゲーム: ホストか参加者のだれか1人でも名前が「チンコ」「ちんこ」のときだけロビーに出る(同名は自動で「ちんこ2」のようになるので、末尾の数字は無視する)。
               開発中モード(?dev=1)では常に出る。出し分けは online-core.js 側(def.reveal)。
   数え方: 加速度センサー(DeviceMotion の accelerationIncludingGravity)の大きさ |a| が、重力 9.81 m/s² から 9 m/s² 以上ずれたら「1回」。
           数えたあと、ずれが 3 m/s² 未満に戻る(=いったん落ち着く)まで次は数えない。連続する2回は 80ms 以上あける。しきい値は固定で、端末ごとの調整はしない。
@@ -292,8 +292,7 @@
     reveal: function(hostName, names){
       var norm = function(s){ return String(s == null ? '' : s).normalize('NFKC').trim().replace(/[0-9]+$/, ''); };
       var ok = function(s){ var n = norm(s); return n === 'チンコ' || n === 'ちんこ'; };
-      if(!ok(hostName)) return false;
-      return (names || []).every(ok);
+      return [hostName].concat(names || []).some(ok);       // ホストか参加者のだれか1人でも
     },
     tagline: 'スマホを制限時間(10秒)のあいだ振りまくる。回数が一番多い人の勝ち。',
     rules: [

@@ -165,6 +165,8 @@
     '.gcard .gt{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;}.gcard .gt b{font-size:15px;font-weight:900;}',
     '.gcard .gs{font-size:12px;color:var(--text-muted);line-height:1.5;}.gcard .gp{font-size:11px;color:var(--text-muted);}',
     '.gcard .gc{color:var(--text-muted);font-size:20px;}.gcard:disabled{opacity:.5;cursor:default;}',
+    '.gcard.hid{border-color:var(--gc);animation:hidGlow 2.2s ease-in-out infinite;}',
+    '@keyframes hidGlow{0%,100%{box-shadow:0 0 0 0 transparent;}50%{box-shadow:0 0 14px 2px var(--gc);}}',
     '.sl{position:relative;}.sl .slotbg{position:absolute;left:0;right:0;border:1px dashed var(--line);border-radius:12px;display:flex;align-items:center;}',
     '.sl .slotbg .sn{width:30px;text-align:center;color:var(--text-muted);font-weight:900;font-size:14px;}',
     '.sl .scard{position:absolute;left:30px;right:0;top:0;border-radius:12px;background:var(--bg-surface);border:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:0 14px 0 10px;cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;transition:transform .24s cubic-bezier(.2,.8,.2,1),box-shadow .15s,border-color .15s;will-change:transform;z-index:1;}',
@@ -685,7 +687,7 @@
         var d = REGISTRY[id];
         var ok = online >= d.min && online <= d.max;
         var why = online < d.min ? 'あと' + (d.min - online) + '人必要' : (online > d.max ? d.max + '人まで' : '');
-        return '<button class="gcard" data-g="' + id + '"' + ((isHost && ok) ? '' : ' disabled') + ' style="--gc:' + d.accent + '">' +
+        return '<button class="gcard' + (d.hidden ? ' hid' : '') + '" data-g="' + id + '"' + ((isHost && ok) ? '' : ' disabled') + ' style="--gc:' + d.accent + '">' +
           '<span class="gi" style="background:' + hexA(d.accent, 0.16) + ';color:' + d.accent + '">' + d.emoji + '</span>' +
           '<span class="gt"><b>' + esc(d.title) + '</b><span class="gs">' + esc(d.tagline) + '</span>' +
           '<span class="gp">' + d.min + '〜' + d.max + '人' + (why ? ' / ' + why : '') + '</span></span>' +
