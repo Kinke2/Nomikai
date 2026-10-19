@@ -672,7 +672,7 @@
       var d = REGISTRY[id]; if(!d) return false;
       if(!d.hidden || devMode) return true;
       var h = (players || []).filter(function(p){ return p.host; })[0];
-      try{ return !!(h && d.reveal && d.reveal(h.name)); }catch(e){ return false; }
+      try{ return !!(h && d.reveal && d.reveal(h.name, (players || []).map(function(p){ return p.name; }))); }catch(e){ return false; }
     }
     function renderLobby(){
       var players = S.role === 'host' ? hostPublicPlayers() : S.players;
